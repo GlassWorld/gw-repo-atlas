@@ -63,6 +63,12 @@ This document defines the default operating rules for AI agents working in this 
 - Keep reusable panel behavior in shared components instead of duplicating toggle logic.
 - When adding a visualization, define what the axes, units, and grouping mean in code and UI copy.
 
+## Commit Message Rule
+
+- Keep the commit type prefix in English.
+- Write the subject after the prefix in Korean.
+- Preferred examples: `feat: ...`, `fix: ...`, `refactor: ...`, `docs: ...`, `chore: ...`
+
 ## Important Locations
 
 - [README.md](../README.md): top-level product and setup overview

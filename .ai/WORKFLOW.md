@@ -52,6 +52,11 @@
 - If a Q&A or AI-generated text flow changes, verify multiline rendering in the UI.
 - If a dashboard or report layout changes, verify that panels do not stretch into empty vertical space.
 
+## Commit Convention
+
+- Use an English type prefix such as `feat`, `fix`, `refactor`, `docs`, or `chore`.
+- Write the remainder of the commit subject in Korean.
+
 ## Documentation Rules
 
 - Human-facing explanations belong in `docs/` and must be Korean.
