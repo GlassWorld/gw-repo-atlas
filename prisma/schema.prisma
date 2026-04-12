@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// 저장소 등록 정보와 기본 메타데이터를 관리하는 테이블
+model Repository {
+  /// 저장소 고유 식별자 UUID
+  id          String          @id @default(uuid()) @db.Uuid
+  /// 저장소를 등록한 사용자 식별자 UUID
+  userId      String?         @db.Uuid @map("userId")
+  /// GitHub 저장소 정규화 URL
+  url         String
+  /// 저장소 이름
+  name        String
+  /// 저장소 소유자 계정명
+  owner       String
+  /// 저장소 도메인
+  domain      String
+  /// 프라이빗 저장소 여부
+  isPrivate   Boolean         @default(false) @map("isPrivate")
+  /// 선택한 Git 자격증명 식별자 UUID
+  gitCredentialId String?     @unique @db.Uuid @map("git_credential_id")
+  /// 분석 또는 등록 시점에 확인한 브랜치명
+  branch      String?
+  /// 기본 참조 브랜치 또는 ref 정보
+  defaultRef  String?         @map("defaultRef")
+  /// 레코드 생성 일시
+  createdAt   DateTime        @default(now()) @map("createdAt")
+  /// 레코드 수정 일시
+  updatedAt   DateTime        @updatedAt @map("updatedAt")
+  user        User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gitCredential GitDomainCredential? @relation(fields: [gitCredentialId], references: [id], onDelete: SetNull)
+  analyses    Analysis[]
+  qas         Qa[]
+
+  @@unique([userId, url])
+  @@map("repository")
+}
+
+/// 저장소 분석 실행 단위와 요약 결과를 관리하는 테이블
+model Analysis {
+  /// 분석 고유 식별자 UUID
+  id                     String           @id @default(uuid()) @db.Uuid
+  /// 대상 저장소 식별자 UUID
+  repositoryId           String           @db.Uuid @map("repositoryId")
+  /// 분석 상태 값
+  status                 AnalysisStatus   @default(PENDING)
+  /// 프로젝트 상세 요약
+  projectSummary         String?          @map("projectSummary")
+  /// 프로젝트 한 줄 요약
+  projectTagline         String?          @map("projectTagline")
+  /// 추론된 기술 스택 목록 JSON
+  inferredStack          Json?            @map("inferredStack")
+  /// 추론된 엔트리 포인트 목록 JSON
+  entryPoints            Json?            @map("entryPoints")
+  /// 추천 읽기 순서 목록 JSON
+  recommendedReadOrder   Json?            @map("recommendedReadOrder")
+  /// 핵심 파일 목록 JSON
+  keyFiles               Json?            @map("keyFiles")
+  /// 파일 트리 라인 목록 JSON
+  fileTree               Json?            @map("fileTree")
+  /// 분석 시작 일시
+  startedAt              DateTime?        @map("startedAt")
+  /// 분석 완료 일시
+  completedAt            DateTime?        @map("completedAt")
+  /// 분석 실패 시 오류 메시지
+  errorMessage           String?          @map("errorMessage")
+  /// 레코드 생성 일시
+  createdAt              DateTime         @default(now()) @map("createdAt")
+  /// 레코드 수정 일시
+  updatedAt              DateTime         @updatedAt @map("updatedAt")
+  repository             Repository       @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  files                  FileIndex[]
+  commits                CommitSummary[]
+  qas                    Qa[]
+
+  @@index([repositoryId, status])
+  @@map("analysis")
+}
+
+/// 분석 시 수집된 파일 경로와 파일 메타데이터를 관리하는 테이블
+model FileIndex {
+  /// 파일 인덱스 고유 식별자 UUID
+  id              String     @id @default(uuid()) @db.Uuid
+  /// 연결된 분석 식별자 UUID
+  analysisId      String     @db.Uuid @map("analysisId")
+  /// 저장소 기준 상대 파일 경로
+  path            String
+  /// 확장자 기반 추론 언어
+  language        String?
+  /// 엔트리 포인트 후보 여부
+  isEntryPoint    Boolean    @default(false) @map("isEntryPoint")
+  /// 핵심 파일 여부
+  isKeyFile       Boolean    @default(false) @map("isKeyFile")
+  /// 파일 요약 설명
+  summary         String?
+  /// 분석용 파일 스니펫
+  snippet         String?
+  /// 레코드 생성 일시
+  createdAt       DateTime   @default(now()) @map("createdAt")
+  analysis        Analysis   @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  citations       Citation[]
+
+  @@index([analysisId, path])
+  @@map("file_index")
+}
+
+/// 최근 커밋 정보와 변경 흐름 요약을 저장하는 테이블
+model CommitSummary {
+  /// 커밋 요약 고유 식별자 UUID
+  id            String     @id @default(uuid()) @db.Uuid
+  /// 연결된 분석 식별자 UUID
+  analysisId    String     @db.Uuid @map("analysisId")
+  /// 커밋 해시
+  commitHash    String     @map("commitHash")
+  /// 커밋 작성자 이름
+  authorName    String     @map("authorName")
+  /// 커밋 작성자 이메일
+  authorEmail   String     @map("authorEmail")
+  /// 커밋 시각
+  committedAt   DateTime   @map("committedAt")
+  /// 커밋 제목
+  title         String
+  /// 커밋 본문
+  body          String?
+  /// 커밋 변경 요약
+  changeSummary String?    @map("changeSummary")
+  /// 레코드 생성 일시
+  createdAt     DateTime   @default(now()) @map("createdAt")
+  analysis      Analysis   @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId, committedAt])
+  @@map("commit_summary")
+}
+
+/// 사용자 질문과 생성된 답변을 저장하는 테이블
+model Qa {
+  /// 질문응답 고유 식별자 UUID
+  id            String      @id @default(uuid()) @db.Uuid
+  /// 질문한 사용자 식별자 UUID
+  userId        String?     @db.Uuid @map("userId")
+  /// 대상 저장소 식별자 UUID
+  repositoryId  String      @db.Uuid @map("repositoryId")
+  /// 대상 분석 식별자 UUID
+  analysisId    String      @db.Uuid @map("analysisId")
+  /// 사용자 질문 원문
+  question      String
+  /// 생성된 답변 본문
+  answer        String
+  /// 레코드 생성 일시
+  createdAt     DateTime    @default(now()) @map("createdAt")
+  user          User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository    Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  analysis      Analysis    @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  citations     Citation[]
+
+  @@index([analysisId, createdAt])
+  @@map("qa")
+}
+
+/// Q&A 응답에 연결된 파일 citation 정보를 저장하는 테이블
+model Citation {
+  /// citation 고유 식별자 UUID
+  id          String     @id @default(uuid()) @db.Uuid
+  /// 연결된 질문응답 식별자 UUID
+  qaId        String     @db.Uuid @map("qaId")
+  /// 연결된 파일 인덱스 식별자 UUID
+  fileIndexId String     @db.Uuid @map("fileIndexId")
+  /// 해당 파일을 인용한 이유
+  reason      String?
+  /// 레코드 생성 일시
+  createdAt   DateTime   @default(now()) @map("createdAt")
+  qa          Qa         @relation(fields: [qaId], references: [id], onDelete: Cascade)
+  fileIndex   FileIndex  @relation(fields: [fileIndexId], references: [id], onDelete: Cascade)
+
+  @@index([qaId])
+  @@index([fileIndexId])
+  @@map("citation")
+}
+
+/// 서비스 로그인 사용자 계정 정보를 저장하는 테이블
+model User {
+  /// 사용자 고유 식별자 UUID
+  id             String                @id @default(uuid()) @db.Uuid
+  /// 로그인 아이디
+  loginId        String                @unique @map("loginId")
+  /// 연락용 이메일
+  email          String?
+  /// 표시 이름
+  name           String
+  /// 비밀번호 해시
+  passwordHash   String                @map("passwordHash")
+  /// 레코드 생성 일시
+  createdAt      DateTime              @default(now()) @map("createdAt")
+  /// 레코드 수정 일시
+  updatedAt      DateTime              @updatedAt @map("updatedAt")
+  repositories   Repository[]
+  qas            Qa[]
+  gitCredentials GitDomainCredential[]
+
+  @@map("user_account")
+}
+
+/// 사용자별 Git 도메인과 액세스 토큰 정보를 저장하는 테이블
+model GitDomainCredential {
+  /// Git 자격증명 고유 식별자 UUID
+  id            String    @id @default(uuid()) @db.Uuid
+  /// 연결된 사용자 식별자 UUID
+  userId        String    @db.Uuid @map("userId")
+  /// Git 도메인
+  domain        String
+  /// 공급자 표시 이름
+  providerName  String    @map("providerName")
+  /// 연결된 저장소 정규화 URL
+  repositoryUrl String?   @map("repositoryUrl")
+  /// 연결된 저장소 소유자 계정명
+  repositoryOwner String? @map("repositoryOwner")
+  /// 연결된 저장소 이름
+  repositoryName String?  @map("repositoryName")
+  /// 연결된 저장소 프라이빗 여부
+  isPrivate     Boolean   @default(false) @map("isPrivate")
+  /// 프라이빗 저장소 접근용 액세스 토큰
+  accessToken   String?
+  /// 토큰 보유 여부
+  hasToken      Boolean   @default(false) @map("hasToken")
+  /// 기본 자격증명 여부
+  isDefault     Boolean   @default(false) @map("isDefault")
+  /// 레코드 생성 일시
+  createdAt     DateTime  @default(now()) @map("createdAt")
+  /// 레코드 수정 일시
+  updatedAt     DateTime  @updatedAt @map("updatedAt")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository    Repository?
+
+  @@unique([userId, repositoryUrl])
+  @@map("git_domain_credential")
+}
+
+enum AnalysisStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
