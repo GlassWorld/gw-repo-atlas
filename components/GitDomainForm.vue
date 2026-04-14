@@ -347,6 +347,10 @@ async function removeConfirmed() {
             placeholder="프라이빗 저장소용 액세스 토큰"
             :disabled="Boolean(editingId) && !replaceAccessToken && !clearAccessToken"
           />
+          <p class="muted" style="margin: 0;">
+            권한 안내: GitLab 토큰은 <code>read_repository</code> (저장소 clone/pull 읽기) scope가 있으면 충분합니다.
+            <code>api</code> (GitLab API 전체 접근) scope까지는 필요하지 않습니다.
+          </p>
           <div v-if="editingId" class="dense-list-item" style="padding: 8px 10px;">
             <p class="muted" style="margin: 0;">
               현재 상태: {{ editingHasToken ? "토큰 등록됨" : "토큰 없음" }}

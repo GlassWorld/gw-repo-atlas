@@ -1,4 +1,4 @@
-# RepoAtlas Agent Guide
+# Repo-Atlas Agent Guide
 
 This repository uses a split documentation model.
 

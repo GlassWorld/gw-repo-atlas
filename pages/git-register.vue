@@ -14,6 +14,7 @@
           <div class="dense-list">
             <div class="dense-list-item">연결 정보 하나에 저장소 URL과 토큰을 함께 저장합니다.</div>
             <div class="dense-list-item">프라이빗 저장소는 등록된 토큰으로 비대화형 clone 됩니다.</div>
+            <div class="dense-list-item">GitLab 토큰은 `read_repository`(저장소 clone/pull 읽기) scope를 권장합니다.</div>
             <div class="dense-list-item">저장된 연결 정보를 기준으로 저장소가 자동 등록됩니다.</div>
           </div>
         </div>

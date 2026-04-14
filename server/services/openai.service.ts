@@ -104,7 +104,7 @@ export async function answerRepositoryQuestion(input: {
           {
             type: "input_text",
             text:
-              "당신은 RepoAtlas입니다. 제공된 파일 정보만 근거로 답하고 반드시 JSON만 반환하세요. 답변은 한국어로 작성하세요."
+              "당신은 RepoAtlas입니다. 제공된 파일 정보만 근거로 답하고 반드시 JSON만 반환하세요. 답변은 한국어로 작성하세요. answer 문자열은 사람이 읽기 쉬운 Markdown 형식으로 작성하세요. 문단은 빈 줄로 구분하고, 여러 항목은 번호 목록이나 불릿 목록으로 나누세요."
           }
         ]
       },
@@ -118,6 +118,17 @@ export async function answerRepositoryQuestion(input: {
               question: input.question,
               projectSummary: input.projectSummary,
               files: input.files,
+              answerFormat: {
+                language: "ko-KR",
+                markdown: true,
+                rules: [
+                  "answer는 Markdown 문자열로 작성",
+                  "여러 단계나 항목은 번호 목록(1. 2. 3.) 또는 불릿 목록(-) 사용",
+                  "문단 사이는 빈 줄로 구분",
+                  "가능하면 짧은 소제목 사용",
+                  "제공된 파일 정보 밖의 추측은 금지"
+                ]
+              },
               outputSchema: {
                 answer: "string",
                 citations: [

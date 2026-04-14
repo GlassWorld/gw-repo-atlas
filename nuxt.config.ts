@@ -1,5 +1,11 @@
 export default defineNuxtConfig({
   compatibilityDate: "2025-01-01",
+  app: {
+    head: {
+      title: "Repo-Atlas",
+      titleTemplate: "%s | Repo-Atlas"
+    }
+  },
   devtools: {
     enabled: true
   },
