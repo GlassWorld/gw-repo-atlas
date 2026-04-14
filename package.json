@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nuxt dev",
+    "dev": "nuxt dev --port 3001",
     "build": "nuxt build",
-    "preview": "nuxt preview",
+    "preview": "nuxt preview --port 3001",
     "postinstall": "prisma generate",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",

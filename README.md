@@ -1,6 +1,6 @@
-# RepoAtlas
+# Repo-Atlas
 
-RepoAtlas는 GitHub 저장소를 분석해 개발자가 낯선 코드베이스를 빠르게 이해할 수 있도록 돕는 웹 애플리케이션입니다.  
+Repo-Atlas는 GitHub 저장소를 분석해 개발자가 낯선 코드베이스를 빠르게 이해할 수 있도록 돕는 웹 애플리케이션입니다.  
 저장소를 실제로 `git clone`한 뒤 파일 구조, 핵심 메타 파일, 최근 커밋 흐름을 수집하고, OpenAI Responses API를 이용해 프로젝트 요약과 Q&A 응답을 생성합니다.
 
 ## 한눈에 보기
@@ -240,7 +240,7 @@ npx prisma migrate dev --name init
 npm run dev
 ```
 
-개발 서버 실행 후 기본 진입 페이지는 `/`입니다.
+개발 서버 실행 후 기본 진입 주소는 `http://localhost:3001/`입니다.
 
 ## 화면 구성
 
