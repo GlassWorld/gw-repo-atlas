@@ -204,6 +204,34 @@ AUTH_JWT_SECRET="<YOUR_LONG_RANDOM_SECRET>"
 
 샘플은 [.env.example](./.env.example)에 포함되어 있습니다.
 
+## 배포
+
+GitHub Actions로 `main` 브랜치 변경을 받아 `atlas.glassworld.co.kr`에 배포할 수 있도록 프론트 배포 워크플로를 추가했습니다.
+
+같은 서버에서 `home.glassworld.co.kr`와 함께 운영하는 것을 전제로, Atlas는 앱 컨테이너만 `127.0.0.1:3001`에 바인딩하고 외부 `80/443`과 TLS 종료는 기존 공용 Nginx가 담당합니다.
+
+- 워크플로 파일: [.github/workflows/deploy-front.yml](./.github/workflows/deploy-front.yml)
+- 배포 리소스: [deploy/frontend](./deploy/frontend)
+- 대상 도메인: `atlas.glassworld.co.kr`
+- 공용 Nginx용 서버 블록 예시: [deploy/frontend/nginx.atlas.conf](./deploy/frontend/nginx.atlas.conf)
+
+필요한 GitHub Secrets:
+
+- `FRONT_HOST`
+- `FRONT_USER`
+- `FRONT_SSH_KEY`
+- `FRONT_PORT`
+- `FRONT_APP_PATH`
+- `GHCR_USERNAME`
+- `GHCR_TOKEN`
+- `ATLAS_DATABASE_URL`
+- `ATLAS_OPENAI_API_KEY`
+- `ATLAS_AUTH_JWT_SECRET`
+- `ATLAS_APP_PORT` (선택, 기본값 `3001`)
+- `ATLAS_APP_BIND_IP` (선택, 기본값 `127.0.0.1`)
+
+배포 서버에는 Docker와 Docker Compose 플러그인이 설치되어 있어야 합니다. 또한 기존 공용 Nginx 설정에 `atlas.glassworld.co.kr` 서버 블록을 추가하고, `deploy/frontend/nginx.atlas.conf` 예시처럼 `127.0.0.1:3001`로 프록시하도록 맞춰야 합니다.
+
 ## 실행 방법
 
 ```bash

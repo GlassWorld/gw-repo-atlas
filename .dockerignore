@@ -1,0 +1,11 @@
+.ai
+.env
+.env.*
+.git
+.github
+.idea
+.nuxt
+.output
+docs
+node_modules
+npm-debug.log*

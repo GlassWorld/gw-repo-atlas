@@ -60,6 +60,31 @@ Follow-up:
 - Add filters by repository and date.
 - Consider delete, pin, or rerun actions for saved Q&A items.
 
+### 2026-04-14 - GitHub Actions Front Deployment For Atlas
+
+Context:
+
+- RepoAtlas runs as a Nuxt fullstack application, so the production container needs runtime secrets for database access, OpenAI calls, and auth signing.
+- The existing `gw-home` project already established a deployment pattern using GHCR, SSH, SCP, Docker Compose, and Nginx on the target server.
+
+Decision:
+
+- Add a GitHub Actions workflow that builds a container image, pushes it to GHCR, copies deployment manifests to the server, writes a runtime `.env`, and restarts the stack through Docker Compose.
+- Reuse the shared host Nginx for TLS termination and domain routing, and bind the Atlas Nuxt container to an internal loopback port for proxying.
+
+Impact:
+
+- `.github/workflows/deploy-front.yml`
+- `deploy/frontend/Dockerfile`
+- `deploy/frontend/docker-compose.yml`
+- `deploy/frontend/nginx.atlas.conf`
+- `README.md`
+
+Follow-up:
+
+- Validate the workflow against the real server secrets and certificate state.
+- Consider adding a separate build-only CI workflow for pull requests.
+
 ### YYYY-MM-DD - Title
 
 Context:

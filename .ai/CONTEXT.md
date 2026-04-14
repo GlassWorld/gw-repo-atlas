@@ -9,6 +9,8 @@
 - Production build verification passed.
 - Authentication, saved Git connections, repository management, async analysis history, and Q&A history are implemented.
 - The current UI direction is a dense dashboard/report console with collapsible panels.
+- GitHub Actions based production deployment for `atlas.glassworld.co.kr` is now scaffolded under `.github/workflows` and `deploy/frontend`.
+- The current deployment shape assumes a shared reverse proxy on the same server as `home.glassworld.co.kr`, with Atlas bound to an internal loopback port.
 
 ## Current Core Modules
 
@@ -26,6 +28,7 @@
 - File selection for Q&A is currently heuristic and rule-based.
 - Git connection data stores repository URL and token together.
 - Q&A targets are selected from completed analyses rather than typed by raw IDs.
+- Production runtime requires `DATABASE_URL`, `OPENAI_API_KEY`, and `AUTH_JWT_SECRET` to be present on the deployment host.
 
 ## Likely Next Work
 
@@ -35,3 +38,4 @@
 - Persistent collapsed-panel preferences
 - Author and activity reporting refinement
 - Safer private-repository metadata detection
+- First-production deployment validation on the target host, including TLS certificate issuance
