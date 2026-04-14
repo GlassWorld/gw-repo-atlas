@@ -227,7 +227,7 @@ GitHub Actions로 `main` 브랜치 변경을 받아 `atlas.glassworld.co.kr`에 
 - `ATLAS_DATABASE_URL`
 - `ATLAS_OPENAI_API_KEY`
 - `ATLAS_AUTH_JWT_SECRET`
-- `ATLAS_APP_PORT` (선택, 기본값 `3001`)
+- `ATLAS_APP_PORT` (선택, 기본값 `3001`, Atlas 내부/외부 포트 공통)
 - `ATLAS_APP_BIND_IP` (선택, 기본값 `127.0.0.1`)
 
 배포 서버에는 Docker와 Docker Compose 플러그인이 설치되어 있어야 합니다. 또한 기존 공용 Nginx 설정에 `atlas.glassworld.co.kr` 서버 블록을 추가하고, `deploy/frontend/nginx.atlas.conf` 예시처럼 `127.0.0.1:3001`로 프록시하도록 맞춰야 합니다.
