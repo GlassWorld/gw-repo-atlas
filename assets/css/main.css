@@ -1,14 +1,14 @@
 :root {
   color-scheme: dark;
-  --bg: #0d1117;
-  --bg-strong: #080b11;
-  --surface: #11161f;
-  --surface-strong: #161d29;
-  --surface-muted: #0f141d;
-  --border: #263244;
-  --border-strong: #3c4b63;
-  --text: #eef4ff;
-  --muted: #8f9eb3;
+  --bg: #151b23;
+  --bg-strong: #10161d;
+  --surface: #1a2230;
+  --surface-strong: #202a39;
+  --surface-muted: #161e2a;
+  --border: #324258;
+  --border-strong: #4a5d78;
+  --text: #f1f6ff;
+  --muted: #9aa9bd;
   --accent: #48d2c2;
   --accent-strong: #0ea5a0;
   --accent-soft: rgba(72, 210, 194, 0.12);
@@ -30,7 +30,7 @@ body {
   background:
     linear-gradient(90deg, rgba(72, 210, 194, 0.05) 1px, transparent 1px),
     linear-gradient(rgba(72, 210, 194, 0.05) 1px, transparent 1px),
-    radial-gradient(circle at top right, rgba(72, 210, 194, 0.1), transparent 22%),
+    radial-gradient(circle at top right, rgba(72, 210, 194, 0.14), transparent 24%),
     linear-gradient(180deg, var(--bg-strong) 0%, var(--bg) 100%);
   background-size: 32px 32px, 32px 32px, auto, auto;
 }
@@ -54,9 +54,11 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
-  background: rgba(8, 11, 17, 0.88);
+  background: rgba(16, 22, 29, 0.88);
   backdrop-filter: blur(12px);
 }
 
@@ -74,6 +76,32 @@ textarea {
   color: var(--muted);
   flex-wrap: wrap;
   font-size: 0.92rem;
+}
+
+.topbar-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.auth-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  color: var(--text);
+  font-weight: 700;
 }
 
 .page-shell {
