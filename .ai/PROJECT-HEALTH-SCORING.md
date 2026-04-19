@@ -63,6 +63,7 @@ Python:
 - Summary prompt integration: `server/services/openai.service.ts`
 - Stored JSON type: `types/atlas.ts`
 - UI rendering: `components/HealthScorePanel.vue`
+- Shared presentation tones: `utils/analysis-presentation.ts`
 
 ## Maintenance Notes
 

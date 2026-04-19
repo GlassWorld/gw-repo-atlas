@@ -540,21 +540,21 @@ textarea {
   gap: 8px;
 }
 
-.analysis-item-card-pending {
+.analysis-item-pending-card {
   border-color: rgba(154, 169, 189, 0.28);
 }
 
-.analysis-item-card-running {
+.analysis-item-running-card {
   border-color: rgba(72, 210, 194, 0.58);
   background: linear-gradient(90deg, rgba(72, 210, 194, 0.12), var(--surface-muted));
 }
 
-.analysis-item-card-success {
+.analysis-item-success-card {
   border-color: rgba(70, 194, 122, 0.58);
   background: linear-gradient(90deg, rgba(70, 194, 122, 0.12), var(--surface-muted));
 }
 
-.analysis-item-card-failed {
+.analysis-item-failed-card {
   border-color: rgba(255, 109, 109, 0.58);
   background: linear-gradient(90deg, rgba(255, 109, 109, 0.12), var(--surface-muted));
 }
@@ -573,25 +573,25 @@ textarea {
   white-space: nowrap;
 }
 
-.analysis-item-status-pending {
+.analysis-item-pending-status {
   background: rgba(154, 169, 189, 0.08);
   border-color: rgba(154, 169, 189, 0.28);
   color: var(--muted);
 }
 
-.analysis-item-status-running {
+.analysis-item-running-status {
   background: rgba(72, 210, 194, 0.14);
   border-color: rgba(72, 210, 194, 0.52);
   color: var(--accent);
 }
 
-.analysis-item-status-success {
+.analysis-item-success-status {
   background: rgba(70, 194, 122, 0.14);
   border-color: rgba(70, 194, 122, 0.52);
   color: var(--success);
 }
 
-.analysis-item-status-failed {
+.analysis-item-failed-status {
   background: rgba(255, 109, 109, 0.14);
   border-color: rgba(255, 109, 109, 0.52);
   color: var(--danger);

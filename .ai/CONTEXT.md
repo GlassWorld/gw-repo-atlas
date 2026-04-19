@@ -8,7 +8,7 @@
 - OpenAI Responses API integration for summary and Q&A is implemented.
 - Repository analysis now uses slot-based snippet selection and stores an OpenAI-generated health score.
 - Health scoring is stack-aware: project kind detection builds Nuxt/Node, Java, Python, Go, Rust, or generic scoring rules before the OpenAI request.
-- Analysis detail UI is staged: base analysis creates the project overview, then grouped item cards run and activate detail pages for overview, health, structure, and commit activity.
+- Analysis detail UI is staged: base analysis creates the project overview, then grouped item cards run and activate detail pages for health, structure, and commit activity.
 - Per-item analysis state and generated OpenAI reports are stored in `analysis_artifact`.
 - Production build verification passed.
 - Authentication, saved Git connections, repository management, repository-scoped analysis, and Q&A history are implemented.
@@ -35,6 +35,7 @@
 - File selection for Q&A is currently heuristic and rule-based.
 - Analysis snippet selection is slot-based: required docs/manifests/entrypoints, environment/config files, then up to two code files.
 - Health scoring rules are built in `server/utils/project-health.ts`; the health score JSON now includes `projectKind` and `appliedRules`.
+- Analysis status and health-score presentation signals live in `utils/analysis-presentation.ts`.
 - Git connection data stores repository URL and token together.
 - Q&A targets are selected from completed analyses rather than typed by raw IDs.
 - Production runtime requires `DATABASE_URL`, `OPENAI_API_KEY`, and `AUTH_JWT_SECRET` to be present on the deployment host.

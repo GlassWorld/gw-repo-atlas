@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { HealthScore } from "../types/atlas";
+import { getHealthScoreTone } from "../utils/analysis-presentation";
 
 const props = defineProps<{
   score: HealthScore | null;
@@ -28,30 +29,7 @@ const projectKind = computed(() => props.score?.projectKind ?? {
 });
 
 const appliedRules = computed(() => props.score?.appliedRules ?? []);
-
-function getScoreTone(score: number) {
-  if (score >= 80) {
-    return {
-      className: "health-score-good",
-      emoji: "✅",
-      label: "좋음"
-    };
-  }
-  if (score >= 50) {
-    return {
-      className: "health-score-neutral",
-      emoji: "😐",
-      label: "보통"
-    };
-  }
-  return {
-    className: "health-score-bad",
-    emoji: "⚠️",
-    label: "주의"
-  };
-}
-
-const totalTone = computed(() => getScoreTone(props.score?.total ?? 0));
+const totalTone = computed(() => getHealthScoreTone(props.score?.total ?? 0));
 </script>
 
 <template>
@@ -85,18 +63,18 @@ const totalTone = computed(() => getScoreTone(props.score?.total ?? 0));
         v-for="row in rows"
         :key="row.label"
         class="dense-list-item health-score-row"
-        :class="getScoreTone(row.item.score).className"
+        :class="getHealthScoreTone(row.item.score).className"
       >
         <div class="health-row-heading">
           <strong>
-            <span aria-hidden="true">{{ getScoreTone(row.item.score).emoji }}</span>
+            <span aria-hidden="true">{{ getHealthScoreTone(row.item.score).emoji }}</span>
             {{ row.label }}
           </strong>
           <span class="score-chip">
-            {{ getScoreTone(row.item.score).label }} · {{ row.item.score }}/100 · {{ row.weight }}
+            {{ getHealthScoreTone(row.item.score).label }} · {{ row.item.score }}/100 · {{ row.weight }}
           </span>
         </div>
-        <div class="health-meter" :class="getScoreTone(row.item.score).className" aria-hidden="true">
+        <div class="health-meter" :class="getHealthScoreTone(row.item.score).className" aria-hidden="true">
           <span :style="{ width: `${Math.max(0, Math.min(100, row.item.score))}%` }" />
         </div>
         <p class="muted" style="margin: 8px 0 0;">{{ row.item.reason }}</p>
