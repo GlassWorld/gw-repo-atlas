@@ -1,7 +1,6 @@
 <script setup lang="ts">
 const errorMessage = ref("");
 const successMessage = ref("");
-const deletingId = ref<string | null>(null);
 const analyzingId = ref<string | null>(null);
 
 const { data, refresh } = await useFetch<{
@@ -35,7 +34,7 @@ async function analyze(id: string) {
       body: { repositoryId: id }
     });
 
-    successMessage.value = "분석 작업이 비동기로 시작되었습니다.";
+    successMessage.value = "분석 작업이 시작되었습니다. 같은 저장소의 기존 분석 결과를 갱신합니다.";
     await refresh();
     await navigateTo("/analyses");
   } catch (error) {
@@ -45,23 +44,8 @@ async function analyze(id: string) {
   }
 }
 
-async function remove(id: string) {
-  deletingId.value = id;
-  errorMessage.value = "";
-  successMessage.value = "";
-
-  try {
-    await $fetch(`/api/repository/${id}`, {
-      method: "DELETE"
-    });
-
-    successMessage.value = "저장소가 삭제되었습니다.";
-    await refresh();
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : "저장소 삭제에 실패했습니다.";
-  } finally {
-    deletingId.value = null;
-  }
+function isAnalysisBusy(status: string | null) {
+  return status === "PENDING" || status === "RUNNING";
 }
 </script>
 
@@ -87,50 +71,49 @@ async function remove(id: string) {
         <p class="muted" style="margin: 0;">등록된 저장소가 없습니다. 먼저 Git 연결 정보를 등록해주세요.</p>
       </div>
       <div v-for="item in data?.repositories ?? []" :key="item.id" class="dense-list-item">
-        <div class="toolbar" style="justify-content: space-between; align-items: start;">
-          <div style="display: grid; gap: 6px;">
-            <strong>{{ item.owner }}/{{ item.name }}</strong>
-            <span class="mono muted">{{ item.url }}</span>
+        <div class="repository-row">
+          <div class="repository-row-main">
+            <div style="display: grid; gap: 6px;">
+              <strong>{{ item.owner }}/{{ item.name }}</strong>
+              <span class="mono muted">{{ item.url }}</span>
+            </div>
+
+            <p class="muted" style="margin: 6px 0 0;">
+              {{ item.domain }} · {{ item.isPrivate ? "Private" : "Public" }} ·
+              {{ item.lastAnalysisStatus ?? "분석 이력 없음" }}
+            </p>
+            <p class="muted" style="margin: 6px 0 0;">
+              {{
+                item.gitCredential
+                  ? `${item.gitCredential.providerName} · ${item.gitCredential.domain} · ${item.gitCredential.hasToken ? "토큰 등록됨" : "토큰 없음"}`
+                  : "연결된 Git 정보 없음"
+              }}
+            </p>
           </div>
-          <div class="toolbar">
+
+          <div class="repository-row-actions">
             <button
-              class="button"
+              class="button repository-action-button"
               type="button"
-              :disabled="analyzingId === item.id"
+              :disabled="analyzingId === item.id || isAnalysisBusy(item.lastAnalysisStatus)"
               @click="analyze(item.id)"
             >
-              {{ analyzingId === item.id ? "분석 시작 중..." : "분석 시작" }}
+              {{
+                analyzingId === item.id || isAnalysisBusy(item.lastAnalysisStatus)
+                  ? "분석 진행 중..."
+                  : item.lastAnalysisId
+                    ? "재분석"
+                    : "분석 시작"
+              }}
             </button>
-            <button
-              class="button secondary"
-              type="button"
-              :disabled="deletingId === item.id"
-              @click="remove(item.id)"
+            <NuxtLink
+              v-if="item.lastAnalysisId"
+              class="button secondary repository-action-button"
+              :to="`/analysis/${item.lastAnalysisId}`"
             >
-              {{ deletingId === item.id ? "삭제 중..." : "삭제" }}
-            </button>
+              최신 분석 보기
+            </NuxtLink>
           </div>
-        </div>
-        <p class="muted" style="margin: 6px 0 0;">
-          {{ item.domain }} · {{ item.isPrivate ? "Private" : "Public" }} ·
-          {{ item.lastAnalysisStatus ?? "분석 이력 없음" }}
-        </p>
-        <p class="muted" style="margin: 6px 0 0;">
-          {{
-            item.gitCredential
-              ? `${item.gitCredential.providerName} · ${item.gitCredential.domain} · ${item.gitCredential.hasToken ? "토큰 등록됨" : "토큰 없음"}`
-              : "연결된 Git 정보 없음"
-          }}
-        </p>
-        <div class="toolbar" style="margin-top: 10px;">
-          <NuxtLink class="button secondary" to="/git-register">연결 정보 수정</NuxtLink>
-          <NuxtLink
-            v-if="item.lastAnalysisId"
-            class="button secondary"
-            :to="`/analysis/${item.lastAnalysisId}`"
-          >
-            최신 분석 보기
-          </NuxtLink>
         </div>
       </div>
     </div>

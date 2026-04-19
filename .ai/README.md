@@ -13,6 +13,7 @@ The `.ai` directory contains AI-facing operating documents, handoff context, and
 - [WORKFLOW.md](./WORKFLOW.md): execution and verification habits
 - [CONTEXT.md](./CONTEXT.md): current repository context and handoff notes
 - [DECISIONS.md](./DECISIONS.md): architecture and process decisions
+- [PROJECT-HEALTH-SCORING.md](./PROJECT-HEALTH-SCORING.md): stack-aware health scoring design
 - [skills/repo-atlas/SKILL.md](./skills/repo-atlas/SKILL.md): base repository skill
 
 ## Maintenance Rules

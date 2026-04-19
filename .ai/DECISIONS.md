@@ -104,12 +104,146 @@ Impact:
 - `server/services/openai.service.ts`
 - `server/services/analysis.service.ts`
 - `prisma/schema.prisma`
-- `pages/analysis/[id].vue`
+- `pages/analysis/[id]/index.vue`
 
 Follow-up:
 
 - Consider moving slot definitions into a shared configuration module if more categories are added.
 - Add deterministic precomputed signal metadata if health scoring needs to become less model-dependent.
+
+### 2026-04-19 - Stack-Aware Health Scoring
+
+Context:
+
+- The first health scoring prompt used one generic set of target files.
+- That was reasonable for Nuxt/Node repositories but too weak for Java and Python repositories, where test harnesses and quality tools live in different files.
+
+Decision:
+
+- Detect a repository project kind before health scoring.
+- Build project-kind-specific `healthScoreRules` and send them to OpenAI with `detectedProject`.
+- Keep the persisted score buckets stable while changing the target evidence inside each bucket by stack.
+- Store `projectKind` and `appliedRules` inside the health score JSON.
+
+Impact:
+
+- `server/utils/project-health.ts`
+- `server/services/openai.service.ts`
+- `components/HealthScorePanel.vue`
+- `types/atlas.ts`
+- `.ai/PROJECT-HEALTH-SCORING.md`
+- `docs/프로젝트-헬스-스코어링.md`
+
+Follow-up:
+
+- Add more detector signals for Kotlin, Spring multi-module builds, monorepos, and frontend/backend mixed repositories.
+- Consider making score buckets configurable if product requirements need different category weights per stack.
+
+### 2026-04-19 - Repository-Scoped Analysis Menu
+
+Context:
+
+- Creating a new `analysis` row on every analysis start made the product feel like an execution-history viewer.
+- The next product direction is task-based analysis per repository, where users run or rerun specific checks from a stable repository workspace.
+
+Decision:
+
+- Reuse the latest analysis row for a repository when analysis is started again.
+- Keep already running analysis jobs from being launched twice.
+- Change the `/analyses` page from an analysis history list into a repository-scoped analysis menu.
+
+Impact:
+
+- `server/services/analysis.service.ts`
+- `server/api/analyze.post.ts`
+- `pages/analyses.vue`
+- `components/RepositoryForm.vue`
+- `layouts/default.vue`
+
+Follow-up:
+
+- Split scan, health, security, CI/CD, and quality checks into dedicated analysis artifacts.
+- Decide whether old historical analysis rows should be migrated or pruned.
+
+### 2026-04-19 - Catalog-Based Analysis Items
+
+Context:
+
+- The analysis detail page is moving from one large report into staged, per-item analysis.
+- More analysis types will be added, so item grouping and validation should not be scattered across pages and API handlers.
+
+Decision:
+
+- Introduce `utils/analysis-items.ts` as the shared catalog for item type, group, title, description, readiness, completion, and summary state.
+- Render analysis groups from the catalog and reuse the same catalog for item API type validation and detail-page headings.
+
+Impact:
+
+- `utils/analysis-items.ts`
+- `pages/analysis/[id]/index.vue`
+- `pages/analysis/[id]/items/[type].vue`
+- `server/api/analysis/[id]/items.post.ts`
+
+Follow-up:
+
+- Persist item execution state and result payloads in an analysis artifact table when item-specific OpenAI calls are introduced.
+- Add new item types by extending the catalog first, then adding a matching detail renderer.
+
+### 2026-04-19 - Persistent Analysis Artifacts
+
+Context:
+
+- Staged analysis needs durable per-item state instead of only activating local UI links.
+- Item-specific analysis calls should be rerunnable without creating new top-level analysis rows.
+
+Decision:
+
+- Add `analysis_artifact` with one row per `(analysisId, type)` to store status, summary, result JSON, error message, and timestamps.
+- Keep base repository analysis on `analysis`, `file_index`, and `commit_summary`.
+- Run item-specific OpenAI reports from `POST /api/analysis/:id/items` and poll the analysis detail response for artifact state.
+
+Impact:
+
+- `prisma/schema.prisma`
+- `prisma/migrations/20260419112000_add_analysis_artifacts/migration.sql`
+- `server/services/analysis.service.ts`
+- `server/services/openai.service.ts`
+- `server/api/analysis/[id]/items.post.ts`
+- `types/atlas.ts`
+- `pages/analysis/[id]/index.vue`
+- `pages/analysis/[id]/items/[type].vue`
+
+Follow-up:
+
+- Move in-process artifact execution to a durable worker or queue before production load increases.
+- Add artifact retention or version history if users need to compare reruns.
+
+### 2026-04-19 - Database-Backed Analysis Job Queue
+
+Context:
+
+- Base analysis and item analysis were launched directly from API handlers.
+- Direct background execution is fragile when requests overlap, process restarts happen, or retries are needed.
+
+Decision:
+
+- Add `analysis_job` as a database-backed queue for base analysis and item analysis jobs.
+- API handlers now create or reset domain state, then enqueue jobs by idempotency key.
+- A Nitro server plugin polls pending jobs, claims them with a worker id, executes the matching service function, and records success, retry, or failure.
+
+Impact:
+
+- `prisma/schema.prisma`
+- `prisma/migrations/20260419114500_add_analysis_jobs/migration.sql`
+- `server/services/analysis-job.service.ts`
+- `server/plugins/analysis-worker.server.ts`
+- `server/api/analyze.post.ts`
+- `server/api/analysis/[id]/items.post.ts`
+
+Follow-up:
+
+- Move the worker into a separate process if analysis load should not share resources with HTTP serving.
+- Add an operator-facing job monitor when support/debug workflows need it.
 
 ### YYYY-MM-DD - Title
 

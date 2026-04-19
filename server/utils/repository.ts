@@ -88,8 +88,10 @@ export function isLikelyEntryPoint(filePath: string): boolean {
     "app.vue",
     "server.ts",
     "server.js",
+    "application.java",
     "src/main.ts",
     "src/index.ts",
+    "src/main/java/application.java",
     "pages/index.vue",
     "nuxt.config.ts"
   ].some((candidate) => normalized.endsWith(candidate));
@@ -100,6 +102,12 @@ export function isLikelyKeyFile(filePath: string): boolean {
   return [
     "readme.md",
     "package.json",
+    "build.gradle",
+    "build.gradle.kts",
+    "pom.xml",
+    "pyproject.toml",
+    "requirements.txt",
+    "setup.py",
     "pnpm-lock.yaml",
     "yarn.lock",
     "tsconfig.json",

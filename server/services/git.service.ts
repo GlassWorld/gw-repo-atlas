@@ -48,7 +48,12 @@ interface FileCandidate {
 
 const MANIFEST_PRIORITY = [
   "package.json",
+  "build.gradle",
+  "build.gradle.kts",
+  "pom.xml",
   "pyproject.toml",
+  "requirements.txt",
+  "setup.py",
   "go.mod",
   "cargo.toml"
 ];
@@ -57,7 +62,8 @@ const ENTRYPOINT_PATTERNS = [
   /(^|\/)main\.[^/]+$/i,
   /(^|\/)app\.[^/]+$/i,
   /(^|\/)index\.[^/]+$/i,
-  /(^|\/)server\.[^/]+$/i
+  /(^|\/)server\.[^/]+$/i,
+  /(^|\/)[^/]*application\.java$/i
 ];
 
 const ENVIRONMENT_SLOT_PATTERNS = [
@@ -71,6 +77,8 @@ const ENVIRONMENT_SLOT_PATTERNS = [
       /(^|\/)jest\.config\.[^/]+$/i,
       /(^|\/)vitest\.config\.[^/]+$/i,
       /(^|\/)pytest\.ini$/i,
+      /(^|\/)tox\.ini$/i,
+      /(^|\/)noxfile\.py$/i,
       /(^|\/)playwright\.config\.[^/]+$/i,
       /(^|\/)cypress\.json$/i
     ]
@@ -81,7 +89,13 @@ const ENVIRONMENT_SLOT_PATTERNS = [
       /(^|\/)\.eslintrc(\.[^/]+)?$/i,
       /(^|\/)\.prettierrc(\.[^/]+)?$/i,
       /(^|\/)ruff\.toml$/i,
-      /(^|\/)sonar-project\.properties$/i
+      /(^|\/)mypy\.ini$/i,
+      /(^|\/)setup\.cfg$/i,
+      /(^|\/)\.pre-commit-config\.ya?ml$/i,
+      /(^|\/)sonar-project\.properties$/i,
+      /(^|\/)checkstyle\.xml$/i,
+      /(^|\/)pmd\.xml$/i,
+      /(^|\/)spotbugs.*\.xml$/i
     ]
   },
   {
