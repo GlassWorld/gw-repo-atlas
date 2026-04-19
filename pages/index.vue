@@ -46,8 +46,8 @@ const { data } = await useFetch<{
           <span class="meta-pill">Analysis Dashboard</span>
           <h1 class="report-title">분석된 저장소 현황과 작업 흐름을 한 번에 확인합니다.</h1>
           <p>
-            이 화면은 저장소별 통계와 최근 분석 현황을 보는 곳입니다. 새 분석은 `Git 등록` 메뉴에서 비동기로 시작하고,
-            결과 확인은 `분석 내역` 메뉴에서 이어집니다.
+            이 화면은 저장소별 통계와 최신 분석 현황을 보는 곳입니다. 새 분석은 `분석` 메뉴에서 저장소별로 실행하고,
+            결과도 같은 메뉴에서 이어서 확인합니다.
           </p>
         </div>
         <div class="chart-shell">
@@ -57,8 +57,8 @@ const { data } = await useFetch<{
           </div>
           <div class="dense-list">
             <div class="dense-list-item">1. Git 도메인/토큰 등록</div>
-            <div class="dense-list-item">2. 저장소 URL 등록 및 비동기 분석 시작</div>
-            <div class="dense-list-item">3. 분석 내역 화면에서 결과 확인</div>
+            <div class="dense-list-item">2. 저장소 URL 등록</div>
+            <div class="dense-list-item">3. 분석 메뉴에서 저장소별 실행 및 결과 확인</div>
           </div>
         </div>
       </div>
@@ -67,7 +67,7 @@ const { data } = await useFetch<{
     <section class="grid grid-4">
       <MetricCard label="Projects" :value="data?.dashboard.metrics.repositoryCount ?? 0" note="등록된 저장소" />
       <MetricCard label="Private" :value="data?.dashboard.metrics.privateRepositoryCount ?? 0" note="프라이빗 저장소" />
-      <MetricCard label="Analyses" :value="data?.dashboard.metrics.analysisCount ?? 0" note="최근 분석 건수" />
+      <MetricCard label="Analyses" :value="data?.dashboard.metrics.analysisCount ?? 0" note="최신 분석 보유" />
       <MetricCard label="Git Domains" :value="data?.dashboard.metrics.gitDomainCount ?? 0" note="등록된 도메인" />
     </section>
 
@@ -129,8 +129,8 @@ const { data } = await useFetch<{
         <article class="panel">
           <div class="panel-header">
             <div>
-              <h2>최근 분석</h2>
-              <p class="muted">최근 비동기 분석 작업의 실행 결과</p>
+              <h2>최신 분석</h2>
+              <p class="muted">저장소별 최신 분석 결과</p>
             </div>
           </div>
           <div class="dense-list">

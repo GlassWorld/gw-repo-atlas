@@ -74,6 +74,50 @@ export async function getRepositoryOrThrow(input: {
 }
 
 export async function listRepositoriesByUser(userId: string) {
+  await prisma.$transaction(async (tx) => {
+    const credentials = await tx.gitDomainCredential.findMany({
+      where: {
+        userId,
+        repositoryUrl: {
+          not: null
+        },
+        repository: null
+      }
+    });
+
+    for (const credential of credentials) {
+      if (!credential.repositoryUrl) {
+        continue;
+      }
+
+      const parsed = parseRepositoryUrl(credential.repositoryUrl);
+      await tx.repository.upsert({
+        where: {
+          userId_url: {
+            userId,
+            url: parsed.normalizedUrl
+          }
+        },
+        update: {
+          owner: parsed.owner,
+          name: parsed.name,
+          domain: parsed.domain,
+          isPrivate: credential.isPrivate,
+          gitCredentialId: credential.id
+        },
+        create: {
+          userId,
+          url: parsed.normalizedUrl,
+          owner: parsed.owner,
+          name: parsed.name,
+          domain: parsed.domain,
+          isPrivate: credential.isPrivate,
+          gitCredentialId: credential.id
+        }
+      });
+    }
+  });
+
   return prisma.repository.findMany({
     where: { userId },
     include: {

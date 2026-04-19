@@ -58,12 +58,10 @@ model Analysis {
   inferredStack          Json?            @map("inferredStack")
   /// 추론된 엔트리 포인트 목록 JSON
   entryPoints            Json?            @map("entryPoints")
-  /// 추천 읽기 순서 목록 JSON
-  recommendedReadOrder   Json?            @map("recommendedReadOrder")
-  /// 핵심 파일 목록 JSON
-  keyFiles               Json?            @map("keyFiles")
   /// 파일 트리 라인 목록 JSON
   fileTree               Json?            @map("fileTree")
+  /// 저장소 운영 건강도 점수 JSON
+  healthScore            Json?            @map("healthScore")
   /// 분석 시작 일시
   startedAt              DateTime?        @map("startedAt")
   /// 분석 완료 일시
@@ -78,9 +76,79 @@ model Analysis {
   files                  FileIndex[]
   commits                CommitSummary[]
   qas                    Qa[]
+  artifacts              AnalysisArtifact[]
 
   @@index([repositoryId, status])
   @@map("analysis")
+}
+
+/// 항목별 분석 실행 상태와 결과 페이로드를 저장하는 테이블
+model AnalysisArtifact {
+  /// 항목별 분석 고유 식별자 UUID
+  id             String         @id @default(uuid()) @db.Uuid
+  /// 연결된 분석 식별자 UUID
+  analysisId     String         @db.Uuid @map("analysisId")
+  /// 분석 항목 타입
+  type           String
+  /// 항목별 분석 상태 값
+  status         AnalysisStatus @default(PENDING)
+  /// 항목별 분석 제목
+  title          String
+  /// 항목별 분석 요약
+  summary        String?
+  /// 항목별 분석 결과 JSON
+  result         Json?
+  /// 항목별 분석 실패 시 오류 메시지
+  errorMessage   String?        @map("errorMessage")
+  /// 항목별 분석 시작 일시
+  startedAt      DateTime?      @map("startedAt")
+  /// 항목별 분석 완료 일시
+  completedAt    DateTime?      @map("completedAt")
+  /// 레코드 생성 일시
+  createdAt      DateTime       @default(now()) @map("createdAt")
+  /// 레코드 수정 일시
+  updatedAt      DateTime       @updatedAt @map("updatedAt")
+  analysis       Analysis       @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@unique([analysisId, type])
+  @@index([analysisId, status])
+  @@map("analysis_artifact")
+}
+
+/// 분석 백그라운드 작업 큐와 재시도 상태를 저장하는 테이블
+model AnalysisJob {
+  /// 분석 작업 고유 식별자 UUID
+  id             String         @id @default(uuid()) @db.Uuid
+  /// 중복 작업 방지 키
+  idempotencyKey String         @unique @map("idempotencyKey")
+  /// 작업 타입
+  type           String
+  /// 작업 상태 값
+  status         AnalysisStatus @default(PENDING)
+  /// 작업 실행에 필요한 JSON 페이로드
+  payload        Json
+  /// 현재 시도 횟수
+  attempts       Int            @default(0)
+  /// 최대 시도 횟수
+  maxAttempts    Int            @default(3) @map("maxAttempts")
+  /// 작업 실행 가능 시각
+  availableAt    DateTime       @default(now()) @map("availableAt")
+  /// 작업 잠금 시각
+  lockedAt       DateTime?      @map("lockedAt")
+  /// 작업 잠금 워커 식별자
+  lockedBy       String?        @map("lockedBy")
+  /// 마지막 오류 메시지
+  lastError      String?        @map("lastError")
+  /// 작업 완료 일시
+  completedAt    DateTime?      @map("completedAt")
+  /// 레코드 생성 일시
+  createdAt      DateTime       @default(now()) @map("createdAt")
+  /// 레코드 수정 일시
+  updatedAt      DateTime       @updatedAt @map("updatedAt")
+
+  @@index([status, availableAt])
+  @@index([lockedAt])
+  @@map("analysis_job")
 }
 
 /// 분석 시 수집된 파일 경로와 파일 메타데이터를 관리하는 테이블
@@ -95,7 +163,7 @@ model FileIndex {
   language        String?
   /// 엔트리 포인트 후보 여부
   isEntryPoint    Boolean    @default(false) @map("isEntryPoint")
-  /// 핵심 파일 여부
+  /// 분석용 스니펫 대상 여부
   isKeyFile       Boolean    @default(false) @map("isKeyFile")
   /// 파일 요약 설명
   summary         String?

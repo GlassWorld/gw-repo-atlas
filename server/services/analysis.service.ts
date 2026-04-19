@@ -1,7 +1,10 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma";
 import { cloneAndScanRepository } from "./git.service";
-import { generateProjectSummary } from "./openai.service";
+import { generateAnalysisItemReport, generateProjectSummary } from "./openai.service";
 import { resolveGitCredential } from "./git-credential.service";
+import type { AnalysisArtifactRecord, AnalysisItemResult, AnalysisItemType, HealthScore } from "../../types/atlas";
+import { getAnalysisItemDefinition, isAnalysisItemType } from "../../utils/analysis-items";
 
 export async function validateAnalysisRequest(input: {
   repositoryId: string;
@@ -42,12 +45,46 @@ export async function createAnalysis(input: {
 }) {
   await validateAnalysisRequest(input);
 
-  return prisma.analysis.create({
+  const existing = await prisma.analysis.findFirst({
+    where: { repositoryId: input.repositoryId },
+    orderBy: { createdAt: "desc" }
+  });
+
+  if (existing?.status === "PENDING" || existing?.status === "RUNNING") {
+    return {
+      analysis: existing,
+      shouldRun: false
+    };
+  }
+
+  if (existing) {
+    const analysis = await prisma.analysis.update({
+      where: { id: existing.id },
+      data: {
+        status: "PENDING",
+        startedAt: null,
+        completedAt: null,
+        errorMessage: null
+      }
+    });
+
+    return {
+      analysis,
+      shouldRun: true
+    };
+  }
+
+  const analysis = await prisma.analysis.create({
     data: {
       repositoryId: input.repositoryId,
       status: "PENDING"
     }
   });
+
+  return {
+    analysis,
+    shouldRun: true
+  };
 }
 
 export async function runAnalysis(input: {
@@ -96,7 +133,7 @@ export async function runAnalysis(input: {
     const aiSummary = await generateProjectSummary({
       repositoryUrl: analysis.repository.url,
       fileTree: scan.fileTree,
-      keyFiles: scan.keyFiles,
+      analysisSnippets: scan.analysisSnippets,
       recentCommits: scan.commits.map((commit) => ({
         title: commit.title,
         body: commit.body
@@ -104,6 +141,9 @@ export async function runAnalysis(input: {
     });
 
     await prisma.$transaction([
+      prisma.analysisArtifact.deleteMany({
+        where: { analysisId: input.analysisId }
+      }),
       prisma.fileIndex.deleteMany({
         where: { analysisId: input.analysisId }
       }),
@@ -119,9 +159,8 @@ export async function runAnalysis(input: {
           projectSummary: aiSummary.summary,
           inferredStack: aiSummary.inferredStack,
           entryPoints: aiSummary.entryPoints,
-          recommendedReadOrder: aiSummary.recommendedReadOrder,
-          keyFiles: aiSummary.keyFiles,
-          fileTree: scan.fileTree
+          fileTree: scan.fileTree,
+          healthScore: aiSummary.healthScore
         }
       }),
       prisma.fileIndex.createMany({
@@ -130,8 +169,8 @@ export async function runAnalysis(input: {
           path: file.path,
           language: file.language,
           isEntryPoint: file.isEntryPoint,
-          isKeyFile: aiSummary.keyFiles.includes(file.path) || file.isKeyFile,
-          summary: file.isKeyFile ? "핵심 파일 후보" : null,
+          isKeyFile: file.isKeyFile,
+          summary: file.summary,
           snippet: file.snippet
         }))
       }),
@@ -184,6 +223,9 @@ export async function getAnalysisDetail(input: {
       },
       commits: {
         orderBy: { committedAt: "desc" }
+      },
+      artifacts: {
+        orderBy: { createdAt: "asc" }
       }
     }
   });
@@ -202,9 +244,8 @@ export async function getAnalysisDetail(input: {
     projectTagline: analysis.projectTagline,
     inferredStack: (analysis.inferredStack as string[] | null) ?? [],
     entryPoints: (analysis.entryPoints as string[] | null) ?? [],
-    recommendedReadOrder: (analysis.recommendedReadOrder as string[] | null) ?? [],
-    keyFiles: (analysis.keyFiles as string[] | null) ?? [],
     fileTree: (analysis.fileTree as string[] | null) ?? [],
+    healthScore: analysis.healthScore,
     errorMessage: analysis.errorMessage,
     repository: {
       id: analysis.repository.id,
@@ -228,71 +269,268 @@ export async function getAnalysisDetail(input: {
       committedAt: commit.committedAt.toISOString(),
       title: commit.title,
       changeSummary: commit.changeSummary
-    }))
+    })),
+    artifacts: analysis.artifacts
+      .filter((artifact) => isAnalysisItemType(artifact.type))
+      .map(serializeAnalysisArtifact)
+  };
+}
+
+export async function requestAnalysisItem(input: {
+  analysisId: string;
+  userId: string;
+  type: AnalysisItemType;
+}) {
+  const definition = getAnalysisItemDefinition(input.type);
+  if (!definition) {
+    throw createError({
+      statusCode: 400,
+      message: "지원하지 않는 분석 항목입니다."
+    });
+  }
+
+  const analysis = await prisma.analysis.findUnique({
+    where: { id: input.analysisId },
+    include: {
+      repository: true
+    }
+  });
+
+  if (!analysis || analysis.repository.userId !== input.userId) {
+    throw createError({
+      statusCode: 404,
+      message: "분석 결과를 찾을 수 없습니다."
+    });
+  }
+
+  if (analysis.status !== "SUCCESS") {
+    throw createError({
+      statusCode: 400,
+      message: "기본 분석이 완료된 뒤 항목 분석을 실행할 수 있습니다."
+    });
+  }
+
+  const existing = await prisma.analysisArtifact.findUnique({
+    where: {
+      analysisId_type: {
+        analysisId: input.analysisId,
+        type: input.type
+      }
+    }
+  });
+
+  if (existing?.status === "PENDING" || existing?.status === "RUNNING") {
+    return {
+      artifact: serializeAnalysisArtifact(existing),
+      shouldRun: false
+    };
+  }
+
+  const artifact = await prisma.analysisArtifact.upsert({
+    where: {
+      analysisId_type: {
+        analysisId: input.analysisId,
+        type: input.type
+      }
+    },
+    create: {
+      analysisId: input.analysisId,
+      type: input.type,
+      title: definition.title,
+      status: "PENDING"
+    },
+    update: {
+      title: definition.title,
+      status: "PENDING",
+      summary: null,
+      result: Prisma.DbNull,
+      errorMessage: null,
+      startedAt: null,
+      completedAt: null
+    }
+  });
+
+  return {
+    artifact: serializeAnalysisArtifact(artifact),
+    shouldRun: true
+  };
+}
+
+export async function runAnalysisItemArtifact(input: {
+  artifactId: string;
+  userId: string;
+}) {
+  const artifact = await prisma.analysisArtifact.findUnique({
+    where: { id: input.artifactId },
+    include: {
+      analysis: {
+        include: {
+          repository: true,
+          files: {
+            orderBy: { path: "asc" }
+          },
+          commits: {
+            orderBy: { committedAt: "desc" }
+          }
+        }
+      }
+    }
+  });
+
+  if (!artifact || artifact.analysis.repository.userId !== input.userId || !isAnalysisItemType(artifact.type)) {
+    throw createError({
+      statusCode: 404,
+      message: "항목 분석 대상을 찾을 수 없습니다."
+    });
+  }
+
+  await prisma.analysisArtifact.update({
+    where: { id: input.artifactId },
+    data: {
+      status: "RUNNING",
+      startedAt: new Date(),
+      errorMessage: null
+    }
+  });
+
+  try {
+    const result = await generateAnalysisItemReport({
+      type: artifact.type,
+      repositoryUrl: artifact.analysis.repository.url,
+      projectSummary: artifact.analysis.projectSummary,
+      inferredStack: (artifact.analysis.inferredStack as string[] | null) ?? [],
+      entryPoints: (artifact.analysis.entryPoints as string[] | null) ?? [],
+      fileTree: (artifact.analysis.fileTree as string[] | null) ?? [],
+      healthScore: artifact.analysis.healthScore as HealthScore | null,
+      files: artifact.analysis.files.map((file) => ({
+        path: file.path,
+        language: file.language,
+        isEntryPoint: file.isEntryPoint,
+        isKeyFile: file.isKeyFile,
+        summary: file.summary,
+        snippet: file.snippet
+      })),
+      commits: artifact.analysis.commits.map((commit) => ({
+        title: commit.title,
+        authorName: commit.authorName,
+        committedAt: commit.committedAt.toISOString(),
+        changeSummary: commit.changeSummary
+      }))
+    });
+
+    await prisma.analysisArtifact.update({
+      where: { id: input.artifactId },
+      data: {
+        status: "SUCCESS",
+        summary: result.summary,
+        result,
+        completedAt: new Date(),
+        errorMessage: null
+      }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "알 수 없는 오류";
+
+    await prisma.analysisArtifact.update({
+      where: { id: input.artifactId },
+      data: {
+        status: "FAILED",
+        completedAt: new Date(),
+        errorMessage: message
+      }
+    });
+
+    throw error;
+  }
+}
+
+function serializeAnalysisArtifact(artifact: {
+  id: string;
+  type: string;
+  status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+  title: string;
+  summary: string | null;
+  result: unknown;
+  errorMessage: string | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): AnalysisArtifactRecord {
+  return {
+    id: artifact.id,
+    type: artifact.type as AnalysisItemType,
+    status: artifact.status,
+    title: artifact.title,
+    summary: artifact.summary,
+    result: artifact.result as AnalysisItemResult | null,
+    errorMessage: artifact.errorMessage,
+    startedAt: artifact.startedAt?.toISOString() ?? null,
+    completedAt: artifact.completedAt?.toISOString() ?? null,
+    createdAt: artifact.createdAt.toISOString(),
+    updatedAt: artifact.updatedAt.toISOString()
   };
 }
 
 export async function listAnalysesByUser(userId: string) {
-  const analyses = await prisma.analysis.findMany({
-    where: {
-      repository: {
-        userId
+  const repositories = await prisma.repository.findMany({
+    where: { userId },
+    include: {
+      analyses: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: {
+          files: true,
+          commits: true
+        }
       }
     },
-    include: {
-      repository: true,
-      files: true,
-      commits: true
-    },
-    orderBy: { createdAt: "desc" }
+    orderBy: { updatedAt: "desc" }
   });
 
-  return analyses.map((analysis) => ({
-    id: analysis.id,
-    status: analysis.status,
-    projectTagline: analysis.projectTagline,
-    projectSummary: analysis.projectSummary,
-    errorMessage: analysis.errorMessage,
-    createdAt: analysis.createdAt.toISOString(),
-    completedAt: analysis.completedAt?.toISOString() ?? null,
-    repository: {
-      id: analysis.repository.id,
-      name: analysis.repository.name,
-      owner: analysis.repository.owner,
-      url: analysis.repository.url,
-      domain: analysis.repository.domain,
-      isPrivate: analysis.repository.isPrivate
-    },
-    fileCount: analysis.files.length,
-    commitCount: analysis.commits.length,
-    keyFileCount: Array.isArray(analysis.keyFiles) ? analysis.keyFiles.length : 0
-  }));
+  return repositories.flatMap((repository) => {
+    const analysis = repository.analyses[0];
+    if (!analysis) {
+      return [];
+    }
+
+    return {
+      id: analysis.id,
+      status: analysis.status,
+      projectTagline: analysis.projectTagline,
+      projectSummary: analysis.projectSummary,
+      errorMessage: analysis.errorMessage,
+      createdAt: analysis.createdAt.toISOString(),
+      startedAt: analysis.startedAt?.toISOString() ?? null,
+      completedAt: analysis.completedAt?.toISOString() ?? null,
+      repository: {
+        id: repository.id,
+        name: repository.name,
+        owner: repository.owner,
+        url: repository.url,
+        domain: repository.domain,
+        isPrivate: repository.isPrivate
+      },
+      fileCount: analysis.files.length,
+      commitCount: analysis.commits.length
+    };
+  });
 }
 
 export async function getDashboardSummary(userId: string) {
-  const [repositories, analyses, credentials] = await Promise.all([
+  const [repositories, credentials] = await Promise.all([
     prisma.repository.findMany({
       where: { userId },
       include: {
         analyses: {
           orderBy: { createdAt: "desc" },
-          take: 1
+          take: 1,
+          include: {
+            files: true,
+            commits: true
+          }
         }
       }
-    }),
-    prisma.analysis.findMany({
-      where: {
-        repository: {
-          userId
-        }
-      },
-      include: {
-        repository: true,
-        files: true,
-        commits: true
-      },
-      orderBy: { createdAt: "desc" },
-      take: 8
     }),
     prisma.gitDomainCredential.findMany({
       where: { userId },
@@ -300,7 +538,11 @@ export async function getDashboardSummary(userId: string) {
     })
   ]);
 
-  const statusCounts = analyses.reduce<Record<string, number>>((acc, analysis) => {
+  const latestAnalyses = repositories
+    .flatMap((repository) => repository.analyses.map((analysis) => ({ ...analysis, repository })))
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+  const statusCounts = latestAnalyses.reduce<Record<string, number>>((acc, analysis) => {
     acc[analysis.status] = (acc[analysis.status] ?? 0) + 1;
     return acc;
   }, {});
@@ -309,7 +551,7 @@ export async function getDashboardSummary(userId: string) {
     metrics: {
       repositoryCount: repositories.length,
       privateRepositoryCount: repositories.filter((item) => item.isPrivate).length,
-      analysisCount: analyses.length,
+      analysisCount: latestAnalyses.length,
       successCount: statusCounts.SUCCESS ?? 0,
       runningCount: statusCounts.RUNNING ?? 0,
       failedCount: statusCounts.FAILED ?? 0,
@@ -324,7 +566,7 @@ export async function getDashboardSummary(userId: string) {
       lastAnalysisStatus: repository.analyses[0]?.status ?? null,
       lastAnalysisId: repository.analyses[0]?.id ?? null
     })),
-    recentAnalyses: analyses.map((analysis) => ({
+    recentAnalyses: latestAnalyses.slice(0, 8).map((analysis) => ({
       id: analysis.id,
       status: analysis.status,
       projectTagline: analysis.projectTagline,

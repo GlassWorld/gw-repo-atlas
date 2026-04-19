@@ -1,4 +1,6 @@
-import { createAnalysis, runAnalysis, validateAnalysisRequest } from "../services/analysis.service";
+import { createAnalysis } from "../services/analysis.service";
+import { enqueueBaseAnalysisJob } from "../services/analysis-job.service";
+import { prisma } from "../db/prisma";
 import { requireUser } from "../utils/auth";
 
 export default defineEventHandler(async (event) => {
@@ -11,23 +13,35 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  await validateAnalysisRequest({
+  const { analysis, shouldRun } = await createAnalysis({
     repositoryId: body.repositoryId,
     userId: user.id
   });
 
-  const analysis = await createAnalysis({
-    repositoryId: body.repositoryId,
-    userId: user.id
-  });
+  if (shouldRun) {
+    try {
+      await enqueueBaseAnalysisJob({
+        analysisId: analysis.id,
+        userId: user.id
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "분석 작업 등록에 실패했습니다.";
 
-  // Nitro 단일 프로세스 환경에서의 간단한 백그라운드 실행 방식입니다.
-  void runAnalysis({
-    analysisId: analysis.id,
-    userId: user.id
-  }).catch((error) => {
-    console.error("[RepoAtlas] analysis failed", error);
-  });
+      await prisma.analysis.update({
+        where: { id: analysis.id },
+        data: {
+          status: "FAILED",
+          completedAt: new Date(),
+          errorMessage: message
+        }
+      });
+
+      throw createError({
+        statusCode: 500,
+        message
+      });
+    }
+  }
 
   return {
     analysis: {

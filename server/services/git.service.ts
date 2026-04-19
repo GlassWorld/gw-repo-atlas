@@ -19,6 +19,7 @@ export interface ScannedFile {
   language: string | null;
   isEntryPoint: boolean;
   isKeyFile: boolean;
+  summary: string | null;
   snippet: string | null;
 }
 
@@ -35,10 +36,99 @@ export interface CloneResult {
   workspacePath: string;
   fileTree: string[];
   files: ScannedFile[];
-  keyFiles: Array<{ path: string; snippet: string }>;
+  analysisSnippets: Array<{ path: string; snippet: string }>;
   commits: CommitInfo[];
   cleanup: () => Promise<void>;
 }
+
+interface FileCandidate {
+  path: string;
+  size: number;
+}
+
+const MANIFEST_PRIORITY = [
+  "package.json",
+  "build.gradle",
+  "build.gradle.kts",
+  "pom.xml",
+  "pyproject.toml",
+  "requirements.txt",
+  "setup.py",
+  "go.mod",
+  "cargo.toml"
+];
+
+const ENTRYPOINT_PATTERNS = [
+  /(^|\/)main\.[^/]+$/i,
+  /(^|\/)app\.[^/]+$/i,
+  /(^|\/)index\.[^/]+$/i,
+  /(^|\/)server\.[^/]+$/i,
+  /(^|\/)[^/]*application\.java$/i
+];
+
+const ENVIRONMENT_SLOT_PATTERNS = [
+  {
+    summary: "CI/CD 설정",
+    patterns: [/^\.github\/workflows\/.+\.ya?ml$/i, /^\.gitlab-ci\.ya?ml$/i, /^jenkinsfile$/i]
+  },
+  {
+    summary: "테스트 하네스 설정",
+    patterns: [
+      /(^|\/)jest\.config\.[^/]+$/i,
+      /(^|\/)vitest\.config\.[^/]+$/i,
+      /(^|\/)pytest\.ini$/i,
+      /(^|\/)tox\.ini$/i,
+      /(^|\/)noxfile\.py$/i,
+      /(^|\/)playwright\.config\.[^/]+$/i,
+      /(^|\/)cypress\.json$/i
+    ]
+  },
+  {
+    summary: "코드 품질 도구 설정",
+    patterns: [
+      /(^|\/)\.eslintrc(\.[^/]+)?$/i,
+      /(^|\/)\.prettierrc(\.[^/]+)?$/i,
+      /(^|\/)ruff\.toml$/i,
+      /(^|\/)mypy\.ini$/i,
+      /(^|\/)setup\.cfg$/i,
+      /(^|\/)\.pre-commit-config\.ya?ml$/i,
+      /(^|\/)sonar-project\.properties$/i,
+      /(^|\/)checkstyle\.xml$/i,
+      /(^|\/)pmd\.xml$/i,
+      /(^|\/)spotbugs.*\.xml$/i
+    ]
+  },
+  {
+    summary: "AI 코딩 도구 설정",
+    patterns: [
+      /(^|\/)\.cursorrules$/i,
+      /(^|\/)copilot-instructions\.md$/i,
+      /^\.github\/copilot-instructions\.md$/i,
+      /^\.aider(\/|$)/i,
+      /^\.continue(\/|$)/i
+    ]
+  },
+  {
+    summary: "환경 변수 예시 파일",
+    patterns: [/(^|\/)\.env\.example$/i]
+  }
+];
+
+const CODE_SLOT_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".vue",
+  ".py",
+  ".go",
+  ".rs",
+  ".java",
+  ".kt",
+  ".rb",
+  ".php",
+  ".swift"
+]);
 
 async function runGit(args: string[], cwd?: string): Promise<string> {
   const { stdout } = await execFileAsync("git", args, {
@@ -88,6 +178,82 @@ export async function testGitRepositoryAccess(input: {
         : "저장소 접근 테스트에 실패했습니다. 저장소 URL 또는 접근 권한을 확인해주세요."
     });
   }
+}
+
+function normalizePath(filePath: string): string {
+  return filePath.toLowerCase();
+}
+
+function matchesAny(filePath: string, patterns: RegExp[]): boolean {
+  return patterns.some((pattern) => pattern.test(filePath));
+}
+
+function pickFirstByPriority(candidates: FileCandidate[], priorities: string[]): FileCandidate | null {
+  for (const priority of priorities) {
+    const found = candidates.find((candidate) => normalizePath(candidate.path).endsWith(priority));
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+}
+
+function getExtension(filePath: string): string {
+  const fileName = filePath.split("/").pop() ?? filePath;
+  const dotIndex = fileName.lastIndexOf(".");
+  return dotIndex >= 0 ? fileName.slice(dotIndex).toLowerCase() : "";
+}
+
+function addSelected(
+  selected: Map<string, string>,
+  candidate: FileCandidate | null | undefined,
+  summary: string
+) {
+  if (candidate && !selected.has(candidate.path)) {
+    selected.set(candidate.path, summary);
+  }
+}
+
+function selectSnippetFiles(candidates: FileCandidate[]) {
+  const selected = new Map<string, string>();
+
+  addSelected(selected, pickFirstByPriority(candidates, ["readme.md"]), "README 문서");
+  addSelected(selected, pickFirstByPriority(candidates, MANIFEST_PRIORITY), "프로젝트 매니페스트");
+  addSelected(
+    selected,
+    candidates.find((candidate) => matchesAny(candidate.path, ENTRYPOINT_PATTERNS)),
+    "애플리케이션 엔트리포인트"
+  );
+
+  for (const slot of ENVIRONMENT_SLOT_PATTERNS) {
+    if (selected.size >= 8) {
+      break;
+    }
+    addSelected(
+      selected,
+      candidates.find((candidate) => matchesAny(candidate.path, slot.patterns)),
+      slot.summary
+    );
+  }
+
+  const remainingCodeFiles = candidates
+    .filter((candidate) => !selected.has(candidate.path))
+    .filter((candidate) => getExtension(candidate.path) && CODE_SLOT_EXTENSIONS.has(getExtension(candidate.path)))
+    .filter((candidate) => candidate.size <= 64 * 1024)
+    .sort((left, right) => {
+      const leftPath = normalizePath(left.path);
+      const rightPath = normalizePath(right.path);
+      const leftScore = (leftPath.startsWith("src/") ? 0 : 2) + (matchesAny(leftPath, ENTRYPOINT_PATTERNS) ? 0 : 1);
+      const rightScore = (rightPath.startsWith("src/") ? 0 : 2) + (matchesAny(rightPath, ENTRYPOINT_PATTERNS) ? 0 : 1);
+      return leftScore - rightScore || left.size - right.size || left.path.localeCompare(right.path);
+    })
+    .slice(0, Math.max(0, 10 - selected.size));
+
+  for (const candidate of remainingCodeFiles.slice(0, 2)) {
+    addSelected(selected, candidate, "코드 구조 확인용 파일");
+  }
+
+  return selected;
 }
 
 async function collectFiles(rootDir: string): Promise<string[]> {
@@ -177,9 +343,23 @@ export async function cloneAndScanRepository(input: {
   }
 
   const paths = await collectFiles(cloneRoot);
+  const candidates = await Promise.all(
+    paths.map(async (path) => {
+      try {
+        const stat = await fs.stat(join(cloneRoot, path));
+        return stat.isFile() ? { path, size: stat.size } : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+  const snippetSelections = selectSnippetFiles(
+    candidates.filter((candidate): candidate is FileCandidate => Boolean(candidate))
+  );
+
   const files = await Promise.all(
     paths.map(async (path) => {
-      const snippet = isLikelyKeyFile(path) || isLikelyEntryPoint(path)
+      const snippet = snippetSelections.has(path)
         ? await readFileSnippet(cloneRoot, path)
         : null;
 
@@ -187,15 +367,15 @@ export async function cloneAndScanRepository(input: {
         path,
         language: inferLanguageFromPath(path),
         isEntryPoint: isLikelyEntryPoint(path),
-        isKeyFile: isLikelyKeyFile(path),
+        isKeyFile: snippetSelections.has(path) || isLikelyKeyFile(path),
+        summary: snippetSelections.get(path) ?? (isLikelyKeyFile(path) ? "분석용 메타 파일" : null),
         snippet
       };
     })
   );
 
-  const keyFiles = files
-    .filter((file) => file.isKeyFile && file.snippet)
-    .slice(0, 10)
+  const analysisSnippets = files
+    .filter((file) => snippetSelections.has(file.path) && file.snippet)
     .map((file) => ({
       path: file.path,
       snippet: file.snippet ?? ""
@@ -207,7 +387,7 @@ export async function cloneAndScanRepository(input: {
     workspacePath: cloneRoot,
     fileTree: buildTreeLines(paths),
     files,
-    keyFiles,
+    analysisSnippets,
     commits,
     cleanup: async () => {
       await fs.rm(cloneRoot, {
