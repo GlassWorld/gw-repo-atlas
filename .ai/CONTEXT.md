@@ -6,6 +6,7 @@
 - Prisma and PostgreSQL are connected.
 - Base tables were created in the `repo_atlas` schema.
 - OpenAI Responses API integration for summary and Q&A is implemented.
+- Repository analysis now uses slot-based snippet selection and stores an OpenAI-generated health score.
 - Production build verification passed.
 - Authentication, saved Git connections, repository management, async analysis history, and Q&A history are implemented.
 - The current UI direction is a dense dashboard/report console with collapsible panels.
@@ -26,6 +27,7 @@
 - Repository analysis runs as in-process async work inside Nitro.
 - A queue worker is the likely next step for production hardening.
 - File selection for Q&A is currently heuristic and rule-based.
+- Analysis snippet selection is slot-based: required docs/manifests/entrypoints, environment/config files, then up to two code files.
 - Git connection data stores repository URL and token together.
 - Q&A targets are selected from completed analyses rather than typed by raw IDs.
 - Production runtime requires `DATABASE_URL`, `OPENAI_API_KEY`, and `AUTH_JWT_SECRET` to be present on the deployment host.

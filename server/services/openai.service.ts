@@ -6,8 +6,7 @@ interface SummaryPayload {
   summary: string;
   inferredStack: string[];
   entryPoints: string[];
-  recommendedReadOrder: string[];
-  keyFiles: string[];
+  healthScore: HealthScorePayload;
 }
 
 interface QaPayload {
@@ -16,6 +15,102 @@ interface QaPayload {
     path: string;
     reason: string;
   }>;
+}
+
+interface HealthScoreItem {
+  score: number;
+  reason: string;
+}
+
+interface HealthScorePayload {
+  documentation: HealthScoreItem;
+  testHarness: HealthScoreItem;
+  cicd: HealthScoreItem;
+  vibeCoding: HealthScoreItem;
+  codeQuality: HealthScoreItem;
+  total: number;
+  flags: string[];
+  suggestions: string[];
+}
+
+const fallbackHealthScore: HealthScorePayload = {
+  documentation: {
+    score: 0,
+    reason: "분석 응답에서 문서화 상태를 확인하지 못했습니다."
+  },
+  testHarness: {
+    score: 0,
+    reason: "분석 응답에서 테스트 설정 상태를 확인하지 못했습니다."
+  },
+  cicd: {
+    score: 0,
+    reason: "분석 응답에서 CI/CD 설정 상태를 확인하지 못했습니다."
+  },
+  vibeCoding: {
+    score: 0,
+    reason: "분석 응답에서 AI 코딩 도구 설정 상태를 확인하지 못했습니다."
+  },
+  codeQuality: {
+    score: 0,
+    reason: "분석 응답에서 코드 품질 도구 설정 상태를 확인하지 못했습니다."
+  },
+  total: 0,
+  flags: [],
+  suggestions: []
+};
+
+function clampScore(value: unknown): number {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function normalizeHealthScore(value: Partial<HealthScorePayload> | undefined): HealthScorePayload {
+  const normalized = {
+    documentation: {
+      score: clampScore(value?.documentation?.score),
+      reason: value?.documentation?.reason || fallbackHealthScore.documentation.reason
+    },
+    testHarness: {
+      score: clampScore(value?.testHarness?.score),
+      reason: value?.testHarness?.reason || fallbackHealthScore.testHarness.reason
+    },
+    cicd: {
+      score: clampScore(value?.cicd?.score),
+      reason: value?.cicd?.reason || fallbackHealthScore.cicd.reason
+    },
+    vibeCoding: {
+      score: clampScore(value?.vibeCoding?.score),
+      reason: value?.vibeCoding?.reason || fallbackHealthScore.vibeCoding.reason
+    },
+    codeQuality: {
+      score: clampScore(value?.codeQuality?.score),
+      reason: value?.codeQuality?.reason || fallbackHealthScore.codeQuality.reason
+    },
+    total: 0,
+    flags: Array.isArray(value?.flags) ? value.flags.filter((item): item is string => typeof item === "string") : [],
+    suggestions: Array.isArray(value?.suggestions)
+      ? value.suggestions.filter((item): item is string => typeof item === "string")
+      : []
+  };
+  normalized.total = clampScore(
+    normalized.documentation.score * 0.25 +
+      normalized.testHarness.score * 0.25 +
+      normalized.cicd.score * 0.2 +
+      normalized.vibeCoding.score * 0.15 +
+      normalized.codeQuality.score * 0.15
+  );
+  return normalized;
+}
+
+function normalizeSummaryPayload(payload: SummaryPayload): SummaryPayload {
+  return {
+    ...payload,
+    inferredStack: Array.isArray(payload.inferredStack) ? payload.inferredStack : [],
+    entryPoints: Array.isArray(payload.entryPoints) ? payload.entryPoints : [],
+    healthScore: normalizeHealthScore(payload.healthScore)
+  };
 }
 
 function getClient(): OpenAI {
@@ -35,7 +130,7 @@ function getClient(): OpenAI {
 export async function generateProjectSummary(input: {
   repositoryUrl: string;
   fileTree: string[];
-  keyFiles: Array<{ path: string; snippet: string }>;
+  analysisSnippets: Array<{ path: string; snippet: string }>;
   recentCommits: Array<{ title: string; body?: string | null }>;
 }): Promise<SummaryPayload> {
   const client = getClient();
@@ -61,15 +156,60 @@ export async function generateProjectSummary(input: {
               task: "프로젝트 요약 생성",
               repositoryUrl: input.repositoryUrl,
               fileTree: input.fileTree,
-              keyFiles: input.keyFiles,
+              analysisSnippets: input.analysisSnippets,
               recentCommits: input.recentCommits,
+              healthScoreRules: {
+                source: "fileTree와 analysisSnippets만 근거로 판단하세요.",
+                categories: {
+                  documentation: "README.md, CHANGELOG, docs/ 폴더 존재 여부와 문서 스니펫",
+                  testHarness: "jest.config.*, vitest.config.*, pytest.ini, playwright.config.*, cypress.json 존재 여부",
+                  cicd: ".github/workflows/*.yml, .github/workflows/*.yaml, .gitlab-ci.yml, Jenkinsfile 존재 여부",
+                  vibeCoding: ".cursorrules, copilot-instructions.md, .aider, .continue 존재 여부",
+                  codeQuality: ".eslintrc.*, .prettierrc, ruff.toml, sonar-project.properties 존재 여부"
+                },
+                scoring: {
+                  range: "0~100",
+                  totalWeights: {
+                    documentation: 25,
+                    testHarness: 25,
+                    cicd: 20,
+                    vibeCoding: 15,
+                    codeQuality: 15
+                  },
+                  flags: "주의사항 배열. 예: .env가 fileTree에 있으면 민감정보 커밋 가능성을 경고",
+                  suggestions: "개선 제안 배열"
+                }
+              },
               outputSchema: {
                 tagline: "string",
                 summary: "string",
                 inferredStack: ["string"],
                 entryPoints: ["string"],
-                recommendedReadOrder: ["string"],
-                keyFiles: ["string"]
+                healthScore: {
+                  documentation: {
+                    score: "number 0~100",
+                    reason: "string 한 줄 근거"
+                  },
+                  testHarness: {
+                    score: "number 0~100",
+                    reason: "string 한 줄 근거"
+                  },
+                  cicd: {
+                    score: "number 0~100",
+                    reason: "string 한 줄 근거"
+                  },
+                  vibeCoding: {
+                    score: "number 0~100",
+                    reason: "string 한 줄 근거"
+                  },
+                  codeQuality: {
+                    score: "number 0~100",
+                    reason: "string 한 줄 근거"
+                  },
+                  total: "number 0~100, documentation 25%, testHarness 25%, cicd 20%, vibeCoding 15%, codeQuality 15% 가중 평균",
+                  flags: ["string"],
+                  suggestions: ["string"]
+                }
               }
             })
           }
@@ -78,14 +218,14 @@ export async function generateProjectSummary(input: {
     ]
   });
 
-  return parseJsonObject<SummaryPayload>(response.output_text, {
+  const payload = parseJsonObject<SummaryPayload>(response.output_text, {
     tagline: "저장소 요약을 생성하지 못했습니다.",
     summary: "OpenAI 응답을 구조화하지 못했습니다.",
     inferredStack: [],
     entryPoints: [],
-    recommendedReadOrder: [],
-    keyFiles: input.keyFiles.map((file) => file.path)
+    healthScore: fallbackHealthScore
   });
+  return normalizeSummaryPayload(payload);
 }
 
 export async function answerRepositoryQuestion(input: {

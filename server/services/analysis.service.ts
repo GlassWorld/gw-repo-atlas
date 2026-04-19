@@ -96,7 +96,7 @@ export async function runAnalysis(input: {
     const aiSummary = await generateProjectSummary({
       repositoryUrl: analysis.repository.url,
       fileTree: scan.fileTree,
-      keyFiles: scan.keyFiles,
+      analysisSnippets: scan.analysisSnippets,
       recentCommits: scan.commits.map((commit) => ({
         title: commit.title,
         body: commit.body
@@ -119,9 +119,8 @@ export async function runAnalysis(input: {
           projectSummary: aiSummary.summary,
           inferredStack: aiSummary.inferredStack,
           entryPoints: aiSummary.entryPoints,
-          recommendedReadOrder: aiSummary.recommendedReadOrder,
-          keyFiles: aiSummary.keyFiles,
-          fileTree: scan.fileTree
+          fileTree: scan.fileTree,
+          healthScore: aiSummary.healthScore
         }
       }),
       prisma.fileIndex.createMany({
@@ -130,8 +129,8 @@ export async function runAnalysis(input: {
           path: file.path,
           language: file.language,
           isEntryPoint: file.isEntryPoint,
-          isKeyFile: aiSummary.keyFiles.includes(file.path) || file.isKeyFile,
-          summary: file.isKeyFile ? "핵심 파일 후보" : null,
+          isKeyFile: file.isKeyFile,
+          summary: file.summary,
           snippet: file.snippet
         }))
       }),
@@ -202,9 +201,8 @@ export async function getAnalysisDetail(input: {
     projectTagline: analysis.projectTagline,
     inferredStack: (analysis.inferredStack as string[] | null) ?? [],
     entryPoints: (analysis.entryPoints as string[] | null) ?? [],
-    recommendedReadOrder: (analysis.recommendedReadOrder as string[] | null) ?? [],
-    keyFiles: (analysis.keyFiles as string[] | null) ?? [],
     fileTree: (analysis.fileTree as string[] | null) ?? [],
+    healthScore: analysis.healthScore,
     errorMessage: analysis.errorMessage,
     repository: {
       id: analysis.repository.id,
@@ -264,8 +262,7 @@ export async function listAnalysesByUser(userId: string) {
       isPrivate: analysis.repository.isPrivate
     },
     fileCount: analysis.files.length,
-    commitCount: analysis.commits.length,
-    keyFileCount: Array.isArray(analysis.keyFiles) ? analysis.keyFiles.length : 0
+    commitCount: analysis.commits.length
   }));
 }
 

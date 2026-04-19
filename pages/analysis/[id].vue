@@ -13,9 +13,6 @@ const { data, refresh, status } = await useFetch<{ analysis: AnalysisDetail }>(
 );
 
 const analysis = computed(() => data.value?.analysis);
-const keyFileDetails = computed(() =>
-  analysis.value?.files.filter((file) => analysis.value?.keyFiles.includes(file.path)) ?? []
-);
 const metrics = computed(() => {
   const value = analysis.value;
   if (!value) {
@@ -24,7 +21,6 @@ const metrics = computed(() => {
 
   return [
     { label: "Files", value: value.files.length, note: "Indexed file paths" },
-    { label: "Key Files", value: value.keyFiles.length, note: "Priority reading candidates" },
     { label: "Entry Points", value: value.entryPoints.length, note: "Detected bootstrap files" },
     { label: "Commits", value: value.commits.length, note: "Recent activity sample" }
   ];
@@ -116,9 +112,7 @@ watchEffect(() => {
       <section class="dashboard-grid">
         <aside class="sidebar-stack">
           <SummaryPanel title="추론된 기술 스택" :items="analysis.inferredStack" />
-          <SummaryPanel title="추천 읽기 순서" :items="analysis.recommendedReadOrder" />
           <SummaryPanel title="엔트리 포인트" :items="analysis.entryPoints" />
-          <SummaryPanel title="핵심 파일 경로" :items="analysis.keyFiles" />
         </aside>
 
         <section class="main-stack">
@@ -128,12 +122,10 @@ watchEffect(() => {
             <CommitTimelineChart :commits="analysis.commits" />
           </section>
 
-          <section class="grid grid-2">
-            <CommitAuthorReportPanel :commits="analysis.commits" />
-            <KeyFilesPanel :files="keyFileDetails" />
-          </section>
+          <HealthScorePanel :score="analysis.healthScore" />
 
           <section class="grid grid-2">
+            <CommitAuthorReportPanel :commits="analysis.commits" />
             <CommitHistoryPanel :commits="analysis.commits" />
           </section>
         </section>

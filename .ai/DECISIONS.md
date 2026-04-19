@@ -85,6 +85,32 @@ Follow-up:
 - Validate the workflow against the real server secrets and certificate state.
 - Consider adding a separate build-only CI workflow for pull requests.
 
+### 2026-04-19 - Slot-Based Analysis Snippet Selection
+
+Context:
+
+- The previous analysis flow selected key snippets from a small path heuristic and capped the result at ten files.
+- Repository health checks need consistent evidence for documentation, test harnesses, CI/CD, AI coding setup, code quality tools, and environment examples.
+
+Decision:
+
+- Select snippets by fixed slots before calling OpenAI: required docs/manifests/entrypoints, environment/config signals, then up to two code files.
+- Ask OpenAI to return a `healthScore` JSON block while preserving the existing summary fields.
+- Store `healthScore` on `analysis` and render it in the analysis detail report.
+
+Impact:
+
+- `server/services/git.service.ts`
+- `server/services/openai.service.ts`
+- `server/services/analysis.service.ts`
+- `prisma/schema.prisma`
+- `pages/analysis/[id].vue`
+
+Follow-up:
+
+- Consider moving slot definitions into a shared configuration module if more categories are added.
+- Add deterministic precomputed signal metadata if health scoring needs to become less model-dependent.
+
 ### YYYY-MM-DD - Title
 
 Context:

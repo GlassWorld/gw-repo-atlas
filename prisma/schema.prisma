@@ -58,12 +58,10 @@ model Analysis {
   inferredStack          Json?            @map("inferredStack")
   /// 추론된 엔트리 포인트 목록 JSON
   entryPoints            Json?            @map("entryPoints")
-  /// 추천 읽기 순서 목록 JSON
-  recommendedReadOrder   Json?            @map("recommendedReadOrder")
-  /// 핵심 파일 목록 JSON
-  keyFiles               Json?            @map("keyFiles")
   /// 파일 트리 라인 목록 JSON
   fileTree               Json?            @map("fileTree")
+  /// 저장소 운영 건강도 점수 JSON
+  healthScore            Json?            @map("healthScore")
   /// 분석 시작 일시
   startedAt              DateTime?        @map("startedAt")
   /// 분석 완료 일시
@@ -95,7 +93,7 @@ model FileIndex {
   language        String?
   /// 엔트리 포인트 후보 여부
   isEntryPoint    Boolean    @default(false) @map("isEntryPoint")
-  /// 핵심 파일 여부
+  /// 분석용 스니펫 대상 여부
   isKeyFile       Boolean    @default(false) @map("isKeyFile")
   /// 파일 요약 설명
   summary         String?

@@ -18,7 +18,6 @@ const { data, refresh } = await useFetch<{
     };
     fileCount: number;
     commitCount: number;
-    keyFileCount: number;
   }>;
 }>("/api/analyses");
 </script>
@@ -57,7 +56,7 @@ const { data, refresh } = await useFetch<{
             {{ item.projectTagline ?? item.projectSummary ?? "분석 요약 생성 전" }}
           </p>
           <p class="muted" style="margin: 6px 0 0;">
-            {{ item.fileCount }} files · {{ item.keyFileCount }} key files · {{ item.commitCount }} commits
+            {{ item.fileCount }} files · {{ item.commitCount }} commits
           </p>
           <p class="muted" style="margin: 6px 0 0;">
             생성: {{ new Date(item.createdAt).toLocaleString("ko-KR") }}

@@ -32,6 +32,22 @@ export interface CommitRecord {
   changeSummary: string | null;
 }
 
+export interface HealthScoreItem {
+  score: number;
+  reason: string;
+}
+
+export interface HealthScore {
+  documentation: HealthScoreItem;
+  testHarness: HealthScoreItem;
+  cicd: HealthScoreItem;
+  vibeCoding: HealthScoreItem;
+  codeQuality: HealthScoreItem;
+  total: number;
+  flags: string[];
+  suggestions: string[];
+}
+
 export interface AnalysisDetail {
   id: string;
   status: AnalysisStatus;
@@ -39,9 +55,8 @@ export interface AnalysisDetail {
   projectTagline: string | null;
   inferredStack: string[];
   entryPoints: string[];
-  recommendedReadOrder: string[];
-  keyFiles: string[];
   fileTree: string[];
+  healthScore: HealthScore | null;
   errorMessage: string | null;
   repository: RegisteredRepository;
   files: FileIndexRecord[];

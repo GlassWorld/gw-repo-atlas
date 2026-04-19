@@ -365,6 +365,26 @@ textarea {
   margin: 0;
 }
 
+.health-row-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.health-meter {
+  height: 8px;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.health-meter span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
 .dense-list {
   display: grid;
   gap: 8px;

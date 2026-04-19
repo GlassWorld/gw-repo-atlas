@@ -2,7 +2,7 @@
 const props = defineProps<{
   files: Array<{
     isEntryPoint: boolean;
-    isKeyFile: boolean;
+    snippet: string | null;
   }>;
   commits: Array<{
     id: string;
@@ -12,19 +12,19 @@ const props = defineProps<{
 const stats = computed(() => {
   const totalFiles = props.files.length || 1;
   const entryPoints = props.files.filter((file) => file.isEntryPoint).length;
-  const keyFiles = props.files.filter((file) => file.isKeyFile).length;
+  const snippetFiles = props.files.filter((file) => file.snippet).length;
   const commits = props.commits.length;
 
   return [
     { label: "Entry", value: entryPoints, ratio: Math.min(entryPoints / Math.max(totalFiles, 4), 1), color: "#48d2c2" },
-    { label: "Key", value: keyFiles, ratio: Math.min(keyFiles / Math.max(totalFiles / 2, 4), 1), color: "#6ea8fe" },
+    { label: "Snippet", value: snippetFiles, ratio: Math.min(snippetFiles / Math.max(totalFiles / 2, 4), 1), color: "#6ea8fe" },
     { label: "Commit", value: commits, ratio: Math.min(commits / 12, 1), color: "#f2b35d" }
   ];
 });
 </script>
 
 <template>
-  <CollapsiblePanel title="구조 시그널" description="엔트리, 핵심 파일, 커밋 밀도">
+  <CollapsiblePanel title="구조 시그널" description="엔트리, 스니펫, 커밋 밀도">
     <div class="chart-shell">
       <div class="chart-legend" style="margin-bottom: 14px;">
         <span v-for="item in stats" :key="item.label" class="legend-item">
