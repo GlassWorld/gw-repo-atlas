@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AnalysisDetail, AnalysisItemType } from "../../../types/atlas";
 import { buildAnalysisGroups, buildAnalysisItems } from "../../../utils/analysis-items";
+import { getAnalysisItemTone } from "../../../utils/analysis-presentation";
 
 const route = useRoute();
 const analysisId = computed(() => route.params.id as string);
@@ -132,42 +133,20 @@ function getRequestErrorMessage(error: unknown, fallback: string) {
 }
 
 function getItemStatusLabel(item: { completed: boolean; running: boolean; artifact: { status: string; errorMessage: string | null } | null }) {
-  if (item.running) {
-    return "🔄 진행 중";
-  }
-  if (item.completed) {
-    return "✅ 완료";
-  }
-  if (item.artifact?.status === "FAILED") {
-    return "⚠️ 실패";
-  }
-  return "😐 대기";
+  const tone = getAnalysisItemTone(item);
+  return `${tone.emoji} ${tone.label}`;
 }
 
 function getItemStatusClass(item: { completed: boolean; running: boolean; artifact: { status: string; errorMessage: string | null } | null }) {
-  if (item.running) {
-    return "analysis-item-status-running";
-  }
-  if (item.completed) {
-    return "analysis-item-status-success";
-  }
-  if (item.artifact?.status === "FAILED") {
-    return "analysis-item-status-failed";
-  }
-  return "analysis-item-status-pending";
+  return `${getAnalysisItemTone(item).className}-status`;
 }
 
 function getItemCardClass(item: { completed: boolean; running: boolean; artifact: { status: string; errorMessage: string | null } | null }) {
-  if (item.running) {
-    return "analysis-item-card-running";
-  }
-  if (item.completed) {
-    return "analysis-item-card-success";
-  }
-  if (item.artifact?.status === "FAILED") {
-    return "analysis-item-card-failed";
-  }
-  return "analysis-item-card-pending";
+  return `${getAnalysisItemTone(item).className}-card`;
+}
+
+function getItemEmoji(item: { completed: boolean; running: boolean; artifact: { status: string; errorMessage: string | null } | null }) {
+  return getAnalysisItemTone(item).emoji;
 }
 
 function startAnalysisPolling() {
@@ -337,10 +316,7 @@ onBeforeUnmount(() => {
 
                 <div class="toolbar" style="justify-content: space-between;">
                   <strong class="analysis-item-title">
-                    <span v-if="item.completed" aria-hidden="true">✅</span>
-                    <span v-else-if="item.running" aria-hidden="true">🔄</span>
-                    <span v-else-if="item.artifact?.status === 'FAILED'" aria-hidden="true">⚠️</span>
-                    <span v-else aria-hidden="true">😐</span>
+                    <span aria-hidden="true">{{ getItemEmoji(item) }}</span>
                     {{ item.title }}
                   </strong>
                   <span class="analysis-item-status" :class="getItemStatusClass(item)">
