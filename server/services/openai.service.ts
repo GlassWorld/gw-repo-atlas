@@ -359,7 +359,7 @@ function normalizeAnalysisItemReport(payload: Partial<AnalysisItemReportPayload>
 }
 
 export async function generateAnalysisItemReport(input: {
-  type: AnalysisItemType;
+  type: Exclude<AnalysisItemType, "docs">;
   repositoryUrl: string;
   projectSummary: string | null;
   inferredStack: string[];

@@ -1,10 +1,12 @@
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, posix } from "node:path";
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { buildTreeLines, trimSnippet } from "../utils/file-tree";
+import { renderMarkdown } from "../../utils/markdown";
+import type { DocsWikiResult } from "../../types/atlas";
 import {
   buildAuthenticatedGitUrl,
   inferLanguageFromPath,
@@ -130,15 +132,39 @@ const CODE_SLOT_EXTENSIONS = new Set([
   ".swift"
 ]);
 
+const DOCS_ROOT = "docs/";
+const DOCS_READABLE_EXTENSIONS = new Set([
+  ".md",
+  ".mdx",
+  ".markdown",
+  ".txt",
+  ".adoc",
+  ".rst"
+]);
+const maxDocsFileBytes = 512 * 1024;
+const gitOutputMaxBuffer = 64 * 1024 * 1024;
+
 async function runGit(args: string[], cwd?: string): Promise<string> {
-  const { stdout } = await execFileAsync("git", args, {
-    cwd,
-    env: {
-      ...process.env,
-      GIT_TERMINAL_PROMPT: "0"
+  try {
+    const { stdout } = await execFileAsync("git", args, {
+      cwd,
+      maxBuffer: gitOutputMaxBuffer,
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: "0"
+      }
+    });
+    return stdout.trim();
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("maxBuffer")) {
+      throw createError({
+        statusCode: 413,
+        message: "Git 명령 출력이 너무 커서 분석을 계속할 수 없습니다. 저장소 파일 수나 커밋 출력이 매우 큰 경우입니다."
+      });
     }
-  });
-  return stdout.trim();
+
+    throw error;
+  }
 }
 
 export async function testGitRepositoryAccess(input: {
@@ -256,8 +282,8 @@ function selectSnippetFiles(candidates: FileCandidate[]) {
   return selected;
 }
 
-async function collectFiles(rootDir: string): Promise<string[]> {
-  const output = await runGit(["ls-files"], rootDir);
+async function collectFiles(rootDir: string, pathspec?: string): Promise<string[]> {
+  const output = await runGit(pathspec ? ["ls-files", pathspec] : ["ls-files"], rootDir);
   return output
     .split("\n")
     .map((line) => line.trim())
@@ -277,6 +303,81 @@ async function readFileSnippet(rootDir: string, relativePath: string): Promise<s
   } catch {
     return null;
   }
+}
+
+async function cloneRepository(input: {
+  repositoryUrl: string;
+  domain: string;
+  isPrivate: boolean;
+  accessToken?: string | null;
+}) {
+  const cloneUrl = buildAuthenticatedGitUrl({
+    repositoryUrl: input.repositoryUrl,
+    domain: input.domain,
+    accessToken: input.accessToken
+  });
+
+  if (input.isPrivate && !input.accessToken) {
+    throw createError({
+      statusCode: 400,
+      message: `${input.domain} 도메인에 대한 액세스 토큰이 없어 프라이빗 저장소를 분석할 수 없습니다.`
+    });
+  }
+
+  const cloneRoot = join(tmpdir(), "repo-atlas", randomUUID(), basename(input.repositoryUrl));
+  await fs.mkdir(cloneRoot, { recursive: true });
+
+  try {
+    await runGit(["clone", "--depth", "50", cloneUrl, cloneRoot]);
+  } catch {
+    throw createError({
+      statusCode: 400,
+      message:
+        input.isPrivate
+          ? "프라이빗 저장소 clone에 실패했습니다. 등록한 도메인 토큰을 확인해주세요."
+          : "저장소 clone에 실패했습니다. 저장소 URL 또는 접근 권한을 확인해주세요."
+    });
+  }
+
+  return {
+    cloneRoot,
+    cleanup: async () => {
+      await fs.rm(cloneRoot, {
+        recursive: true,
+        force: true
+      });
+    }
+  };
+}
+
+function stripMarkdownForSearch(text: string) {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)]\([^)]*\)/g, "$1")
+    .replace(/[#>*_\-[\]()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function inferDocsTitle(path: string, raw: string) {
+  const heading = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => /^#{1,3}\s+/.test(line));
+
+  if (heading) {
+    return heading.replace(/^#{1,3}\s+/, "").trim();
+  }
+
+  const fileName = posix.basename(path).replace(/\.[^.]+$/, "");
+  return fileName.replace(/[-_]+/g, " ");
+}
+
+function isReadableDocsFile(path: string) {
+  return DOCS_READABLE_EXTENSIONS.has(getExtension(path));
 }
 
 async function collectCommits(rootDir: string, limit: number): Promise<CommitInfo[]> {
@@ -314,33 +415,7 @@ export async function cloneAndScanRepository(input: {
   accessToken?: string | null;
   commitLimit?: number;
 }): Promise<CloneResult> {
-  const cloneUrl = buildAuthenticatedGitUrl({
-    repositoryUrl: input.repositoryUrl,
-    domain: input.domain,
-    accessToken: input.accessToken
-  });
-
-  if (input.isPrivate && !input.accessToken) {
-    throw createError({
-      statusCode: 400,
-      message: `${input.domain} 도메인에 대한 액세스 토큰이 없어 프라이빗 저장소를 분석할 수 없습니다.`
-    });
-  }
-
-  const cloneRoot = join(tmpdir(), "repo-atlas", randomUUID(), basename(input.repositoryUrl));
-  await fs.mkdir(cloneRoot, { recursive: true });
-
-  try {
-    await runGit(["clone", "--depth", "50", cloneUrl, cloneRoot]);
-  } catch (error) {
-    throw createError({
-      statusCode: 400,
-      message:
-        input.isPrivate
-          ? "프라이빗 저장소 clone에 실패했습니다. 등록한 도메인 토큰을 확인해주세요."
-          : "저장소 clone에 실패했습니다. 저장소 URL 또는 접근 권한을 확인해주세요."
-    });
-  }
+  const { cloneRoot, cleanup } = await cloneRepository(input);
 
   const paths = await collectFiles(cloneRoot);
   const candidates = await Promise.all(
@@ -389,11 +464,60 @@ export async function cloneAndScanRepository(input: {
     files,
     analysisSnippets,
     commits,
-    cleanup: async () => {
-      await fs.rm(cloneRoot, {
-        recursive: true,
-        force: true
+    cleanup
+  };
+}
+
+export async function collectRepositoryDocsWiki(input: {
+  repositoryUrl: string;
+  domain: string;
+  isPrivate: boolean;
+  accessToken?: string | null;
+}): Promise<DocsWikiResult> {
+  const { cloneRoot, cleanup } = await cloneRepository(input);
+
+  try {
+    const paths = (await collectFiles(cloneRoot, "docs"))
+      .filter((path) => path.toLowerCase().startsWith(DOCS_ROOT))
+      .sort((left, right) => left.localeCompare(right));
+    const documents: DocsWikiResult["documents"] = [];
+    const skipped: DocsWikiResult["skipped"] = [];
+
+    for (const path of paths) {
+      const absolutePath = join(cloneRoot, path);
+      const stat = await fs.stat(absolutePath);
+      if (!stat.isFile()) {
+        continue;
+      }
+
+      if (!isReadableDocsFile(path)) {
+        skipped.push({ path, reason: "HTML 위키로 변환하지 않는 문서 형식입니다." });
+        continue;
+      }
+
+      if (stat.size > maxDocsFileBytes) {
+        skipped.push({ path, reason: "문서 파일이 너무 커서 변환에서 제외했습니다." });
+        continue;
+      }
+
+      const raw = await fs.readFile(absolutePath, "utf8");
+      documents.push({
+        path,
+        title: inferDocsTitle(path, raw),
+        directory: posix.dirname(path),
+        html: renderMarkdown(raw),
+        text: stripMarkdownForSearch(raw),
+        size: stat.size
       });
     }
-  };
+
+    return {
+      rootPath: "docs",
+      tree: buildTreeLines(paths),
+      documents,
+      skipped
+    };
+  } finally {
+    await cleanup();
+  }
 }

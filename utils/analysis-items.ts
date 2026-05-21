@@ -1,6 +1,6 @@
 import type { AnalysisArtifactRecord, AnalysisDetail, AnalysisItemType } from "../types/atlas";
 
-export type AnalysisItemGroupId = "quality" | "structure" | "activity";
+export type AnalysisItemGroupId = "quality" | "structure" | "documentation" | "activity";
 
 export interface AnalysisItemGroupDefinition {
   id: AnalysisItemGroupId;
@@ -35,6 +35,11 @@ export const ANALYSIS_ITEM_GROUPS: AnalysisItemGroupDefinition[] = [
     description: "파일 구성과 엔트리포인트"
   },
   {
+    id: "documentation",
+    title: "문서",
+    description: "저장소 문서 위키와 검색"
+  },
+  {
     id: "activity",
     title: "활동",
     description: "최근 커밋과 작업 흐름"
@@ -53,6 +58,12 @@ export const ANALYSIS_ITEM_DEFINITIONS: AnalysisItemDefinition[] = [
     groupId: "structure",
     title: "구조 시그널",
     description: "파일 분포, 엔트리포인트, 분석용 스니펫 후보 확인"
+  },
+  {
+    type: "docs",
+    groupId: "documentation",
+    title: "문서 분석",
+    description: "OpenAI 없이 docs 하위 문서 원문을 HTML 위키로 구성하고 검색"
   },
   {
     type: "commits",
@@ -88,6 +99,7 @@ export function buildAnalysisGroups(items: AnalysisItemView[]) {
 
 function getAnalysisItemState(type: AnalysisItemType, analysis: AnalysisDetail) {
   const ready = analysis.status === "SUCCESS";
+  const docsReady = analysis.status !== "PENDING" && analysis.status !== "RUNNING";
   const artifact = analysis.artifacts.find((item) => item.type === type) ?? null;
   const isRunning = artifact?.status === "PENDING" || artifact?.status === "RUNNING";
   const isComplete = artifact?.status === "SUCCESS";
@@ -111,6 +123,17 @@ function getAnalysisItemState(type: AnalysisItemType, analysis: AnalysisDetail) 
         completed: isComplete,
         summary: artifact?.summary ?? `${analysis.files.length} files · ${analysis.entryPoints.length} entry points · ${analysis.files.filter((file) => file.snippet).length} snippets`
       };
+    case "docs": {
+      const docsCount = artifact?.result?.docsWiki?.documents.length
+        ?? analysis.files.filter((file) => file.path.toLowerCase().startsWith("docs/")).length;
+      return {
+        artifact,
+        running: isRunning,
+        ready: docsReady && !isRunning,
+        completed: isComplete,
+        summary: artifact?.summary ?? `${docsCount} docs files · HTML wiki · search index`
+      };
+    }
     case "commits":
       return {
         artifact,
