@@ -50,12 +50,13 @@ RepoAtlas에서 OpenAI는 `저장소 접근`이나 `Git clone` 자체가 아니�
 
 ### 2. 항목별 상세 분석 생성
 
-기본 분석이 완료된 뒤 사용자가 분석 항목을 실행하면 OpenAI로 해당 항목의 상세 리포트를 생성합니다.
+기본 분석이 완료된 뒤 사용자가 대부분의 분석 항목을 실행하면 OpenAI로 해당 항목의 상세 리포트를 생성합니다. 단, `문서 분석` 항목은 OpenAI를 사용하지 않고 `docs/` 하위 문서 원문을 직접 수집해 HTML 위키와 검색 인덱스를 구성합니다.
 
 현재 항목:
 
 - 저장소 건강도
 - 구조 시그널
+- 문서 분석
 - 커밋 흐름
 
 항목별 분석 흐름 요약:
@@ -63,7 +64,7 @@ RepoAtlas에서 OpenAI는 `저장소 접근`이나 `Git clone` 자체가 아니�
 1. `POST /api/analysis/:id/items`가 항목 요청을 받습니다.
 2. `analysis_artifact`에 항목 실행 상태를 만들거나 재설정합니다.
 3. `analysis_job`에 항목 분석 작업을 등록합니다.
-4. 워커가 `generateAnalysisItemReport()`를 호출합니다.
+4. 워커가 일반 항목은 `generateAnalysisItemReport()`를 호출하고, 문서 분석은 Git 문서 수집 로직을 호출합니다.
 5. 결과 요약과 상세 JSON을 `analysis_artifact`에 저장합니다.
 
 ### 3. 질문응답 생성
@@ -92,6 +93,7 @@ RepoAtlas에서 OpenAI는 `저장소 접근`이나 `Git clone` 자체가 아니�
 - `git clone`
 - 파일 목록 수집
 - 최근 커밋 수집
+- 문서 분석 항목의 `docs/` 원문 수집, HTML 변환, 디렉터리 구조 표시, 브라우저 검색
 - 대시보드 통계 집계
 - 분석 작업 큐 등록과 상태 전환
 - 프로젝트 종류 감지 규칙 생성

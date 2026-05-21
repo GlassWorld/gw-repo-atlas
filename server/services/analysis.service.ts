@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma";
-import { cloneAndScanRepository } from "./git.service";
+import { cloneAndScanRepository, collectRepositoryDocsWiki } from "./git.service";
 import { generateAnalysisItemReport, generateProjectSummary } from "./openai.service";
 import { resolveGitCredential } from "./git-credential.service";
 import type { AnalysisArtifactRecord, AnalysisItemResult, AnalysisItemType, HealthScore } from "../../types/atlas";
@@ -303,7 +303,7 @@ export async function requestAnalysisItem(input: {
     });
   }
 
-  if (analysis.status !== "SUCCESS") {
+  if (analysis.status !== "SUCCESS" && input.type !== "docs") {
     throw createError({
       statusCode: 400,
       message: "기본 분석이 완료된 뒤 항목 분석을 실행할 수 있습니다."
@@ -365,7 +365,11 @@ export async function runAnalysisItemArtifact(input: {
     include: {
       analysis: {
         include: {
-          repository: true,
+          repository: {
+            include: {
+              gitCredential: true
+            }
+          },
           files: {
             orderBy: { path: "asc" }
           },
@@ -394,29 +398,36 @@ export async function runAnalysisItemArtifact(input: {
   });
 
   try {
-    const result = await generateAnalysisItemReport({
-      type: artifact.type,
-      repositoryUrl: artifact.analysis.repository.url,
-      projectSummary: artifact.analysis.projectSummary,
-      inferredStack: (artifact.analysis.inferredStack as string[] | null) ?? [],
-      entryPoints: (artifact.analysis.entryPoints as string[] | null) ?? [],
-      fileTree: (artifact.analysis.fileTree as string[] | null) ?? [],
-      healthScore: artifact.analysis.healthScore as HealthScore | null,
-      files: artifact.analysis.files.map((file) => ({
-        path: file.path,
-        language: file.language,
-        isEntryPoint: file.isEntryPoint,
-        isKeyFile: file.isKeyFile,
-        summary: file.summary,
-        snippet: file.snippet
-      })),
-      commits: artifact.analysis.commits.map((commit) => ({
-        title: commit.title,
-        authorName: commit.authorName,
-        committedAt: commit.committedAt.toISOString(),
-        changeSummary: commit.changeSummary
-      }))
-    });
+    const result = artifact.type === "docs"
+      ? await generateDocsWikiResult({
+          repositoryUrl: artifact.analysis.repository.url,
+          domain: artifact.analysis.repository.gitCredential?.domain ?? artifact.analysis.repository.domain,
+          isPrivate: artifact.analysis.repository.isPrivate,
+          accessToken: artifact.analysis.repository.gitCredential?.accessToken ?? null
+        })
+      : await generateAnalysisItemReport({
+          type: artifact.type,
+          repositoryUrl: artifact.analysis.repository.url,
+          projectSummary: artifact.analysis.projectSummary,
+          inferredStack: (artifact.analysis.inferredStack as string[] | null) ?? [],
+          entryPoints: (artifact.analysis.entryPoints as string[] | null) ?? [],
+          fileTree: (artifact.analysis.fileTree as string[] | null) ?? [],
+          healthScore: artifact.analysis.healthScore as HealthScore | null,
+          files: artifact.analysis.files.map((file) => ({
+            path: file.path,
+            language: file.language,
+            isEntryPoint: file.isEntryPoint,
+            isKeyFile: file.isKeyFile,
+            summary: file.summary,
+            snippet: file.snippet
+          })),
+          commits: artifact.analysis.commits.map((commit) => ({
+            title: commit.title,
+            authorName: commit.authorName,
+            committedAt: commit.committedAt.toISOString(),
+            changeSummary: commit.changeSummary
+          }))
+        });
 
     await prisma.analysisArtifact.update({
       where: { id: input.artifactId },
@@ -442,6 +453,58 @@ export async function runAnalysisItemArtifact(input: {
 
     throw error;
   }
+}
+
+async function generateDocsWikiResult(input: {
+  repositoryUrl: string;
+  domain: string;
+  isPrivate: boolean;
+  accessToken: string | null;
+}): Promise<AnalysisItemResult> {
+  const docsWiki = await collectRepositoryDocsWiki(input);
+  const documentCount = docsWiki.documents.length;
+  const directoryCount = new Set(docsWiki.documents.map((document) => document.directory)).size;
+
+  return {
+    summary: documentCount
+      ? `docs 하위 문서 ${documentCount}개를 HTML 위키로 구성했습니다.`
+      : "docs 하위에서 HTML 위키로 구성할 문서를 찾지 못했습니다.",
+    sections: [
+      {
+        title: "문서 위키 구성",
+        body: documentCount
+          ? `디렉토리 구조를 유지해 ${directoryCount}개 문서 위치를 탐색할 수 있게 구성했습니다.`
+          : "저장소에 docs 디렉토리가 없거나 변환 가능한 문서가 없습니다."
+      },
+      {
+        title: "검색 인덱스",
+        body: documentCount
+          ? "각 문서의 제목, 경로, 본문 텍스트를 기반으로 브라우저에서 즉시 필터링합니다."
+          : "검색 가능한 문서가 없어 검색 인덱스를 생성하지 않았습니다."
+      }
+    ],
+    findings: documentCount
+      ? [
+          `문서 ${documentCount}개 수집`,
+          `디렉토리 ${directoryCount}개 유지`,
+          `변환 제외 ${docsWiki.skipped.length}개`
+        ]
+      : ["변환 가능한 docs 문서가 없습니다."],
+    suggestions: documentCount
+      ? ["문서 제목과 파일명을 일관되게 유지하면 검색 결과 품질이 좋아집니다."]
+      : ["저장소 루트에 docs 디렉토리를 만들고 Markdown 문서를 추가하세요."],
+    evidence: [
+      {
+        label: "문서 루트",
+        value: docsWiki.rootPath
+      },
+      {
+        label: "문서 수",
+        value: `${documentCount}`
+      }
+    ],
+    docsWiki
+  };
 }
 
 function serializeAnalysisArtifact(artifact: {

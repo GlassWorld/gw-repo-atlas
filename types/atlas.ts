@@ -1,5 +1,5 @@
 export type AnalysisStatus = "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
-export type AnalysisItemType = "health" | "structure" | "commits";
+export type AnalysisItemType = "health" | "structure" | "docs" | "commits";
 
 export interface RepositoryInput {
   url: string;
@@ -68,6 +68,26 @@ export interface AnalysisItemResult {
   evidence: Array<{
     label: string;
     value: string;
+  }>;
+  docsWiki?: DocsWikiResult;
+}
+
+export interface DocsWikiDocument {
+  path: string;
+  title: string;
+  directory: string;
+  html: string;
+  text: string;
+  size: number;
+}
+
+export interface DocsWikiResult {
+  rootPath: string;
+  tree: string[];
+  documents: DocsWikiDocument[];
+  skipped: Array<{
+    path: string;
+    reason: string;
   }>;
 }
 

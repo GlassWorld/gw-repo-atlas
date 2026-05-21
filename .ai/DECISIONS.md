@@ -245,6 +245,34 @@ Follow-up:
 - Move the worker into a separate process if analysis load should not share resources with HTTP serving.
 - Add an operator-facing job monitor when support/debug workflows need it.
 
+### 2026-05-21 - Docs Wiki Analysis Item
+
+Context:
+
+- Users need a document-focused analysis path that turns repository `docs/` content into a browsable reference, not another model-generated summary.
+- Base analysis cleans up its temporary clone, so full document content is not available after the initial scan.
+
+Decision:
+
+- Add `docs` to the shared analysis item catalog.
+- When the docs item runs, clone the target Git repository again, collect readable files under `docs/`, convert Markdown-style content to HTML, and store the wiki payload in `analysis_artifact.result.docsWiki`.
+- Keep search client-side by storing title, path, and plain text for each collected document.
+- Use `markdown-it` for Markdown features such as tables, links, fenced code blocks, heading anchors, and table-of-contents markers; render Mermaid blocks client-side only when a selected document contains them.
+
+Impact:
+
+- `types/atlas.ts`
+- `utils/analysis-items.ts`
+- `server/services/git.service.ts`
+- `server/services/analysis.service.ts`
+- `pages/analysis/[id]/items/[type].vue`
+- `assets/css/main.css`
+
+Follow-up:
+
+- Add richer Markdown support if tables, links, or code fences become important.
+- Consider retention limits or object storage if repositories contain very large document sets.
+
 ### YYYY-MM-DD - Title
 
 Context:

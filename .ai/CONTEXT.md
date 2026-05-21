@@ -9,6 +9,7 @@
 - Repository analysis now uses slot-based snippet selection and stores an OpenAI-generated health score.
 - Health scoring is stack-aware: project kind detection builds Nuxt/Node, Java, Python, Go, Rust, or generic scoring rules before the OpenAI request.
 - Analysis detail UI is staged: base analysis creates the project overview, then grouped item cards run and activate detail pages for health, structure, and commit activity.
+- Analysis detail UI includes a docs analysis item that does not use OpenAI: it clones the repository again, collects `docs/` document source content, renders it as an HTML wiki, and stores the searchable wiki payload in `analysis_artifact`.
 - Per-item analysis state and generated OpenAI reports are stored in `analysis_artifact`.
 - Production build verification passed.
 - Authentication, saved Git connections, repository management, repository-scoped analysis, and Q&A history are implemented.
@@ -31,6 +32,7 @@
 - Starting analysis reuses the latest analysis row for the repository instead of creating an execution-history row each time.
 - Analysis item metadata lives in `utils/analysis-items.ts`; list UI, item API validation, and item detail titles should use that catalog when new analysis types are added.
 - Item analysis requests create or reset an `analysis_artifact` row, enqueue an item job, and store the item-specific OpenAI report in the artifact.
+- The `docs` item is deterministic and does not call OpenAI; it stores `result.docsWiki` with tree lines, converted HTML documents, searchable text, and skipped files.
 - The current queue is database-backed and in-process; a separate worker process is the next hardening step if load grows.
 - File selection for Q&A is currently heuristic and rule-based.
 - Analysis snippet selection is slot-based: required docs/manifests/entrypoints, environment/config files, then up to two code files.
