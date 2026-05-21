@@ -94,7 +94,7 @@ jobs:
               echo "IMAGE_NAME=${{ steps.image.outputs.name }}"
               echo "APP_DOMAIN=atlas.glassworld.co.kr"
               echo "APP_PORT=${{ secrets.ATLAS_APP_PORT || '3001' }}"
-              echo "APP_BIND_IP=${{ secrets.ATLAS_APP_BIND_IP || '127.0.0.1' }}"
+              echo "APP_BIND_IP=${{ secrets.ATLAS_APP_BIND_IP || '0.0.0.0' }}"
               echo "DATABASE_URL=${{ secrets.ATLAS_DATABASE_URL }}"
               echo "OPENAI_API_KEY=${{ secrets.ATLAS_OPENAI_API_KEY }}"
               echo "AUTH_JWT_SECRET=${{ secrets.ATLAS_AUTH_JWT_SECRET }}"
